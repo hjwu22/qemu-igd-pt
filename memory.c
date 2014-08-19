@@ -536,6 +536,7 @@ static void render_memory_region(FlatView *view,
 
     /* Render subregions in priority order. */
     QTAILQ_FOREACH(subregion, &mr->subregions, subregions_link) {
+    	//printf("%s: %s, %p\n", mr->name, subregion->name, subregion);
         render_memory_region(view, subregion, base, clip, readonly);
     }
 
@@ -723,7 +724,7 @@ static void address_space_update_topology_pass(AddressSpace *as,
                 || (int128_eq(frold->addr.start, frnew->addr.start)
                     && !flatrange_equal(frold, frnew)))) {
             /* In old but not in new, or in both but attributes changed. */
-
+						
             if (!adding) {
                 MEMORY_LISTENER_UPDATE_REGION(frold, as, Reverse, region_del);
             }
@@ -760,7 +761,7 @@ static void address_space_update_topology(AddressSpace *as)
 {
     FlatView *old_view = address_space_get_flatview(as);
     FlatView *new_view = generate_memory_topology(as->root);
-
+	//printf("%s  as: %s\n", __func__, as->name);
     address_space_update_topology_pass(as, old_view, new_view, false);
     address_space_update_topology_pass(as, old_view, new_view, true);
 
@@ -797,6 +798,7 @@ void memory_region_transaction_commit(void)
         MEMORY_LISTENER_CALL_GLOBAL(begin, Forward);
 
         QTAILQ_FOREACH(as, &address_spaces, address_spaces_link) {
+			//printf("update as: %s\n", as->name);
             address_space_update_topology(as);
         }
 
@@ -1446,10 +1448,12 @@ static void memory_region_add_subregion_common(MemoryRegion *mr,
     QTAILQ_FOREACH(other, &mr->subregions, subregions_link) {
         if (subregion->priority >= other->priority) {
             QTAILQ_INSERT_BEFORE(other, subregion, subregions_link);
+			//printf("insert %s before %s in %s\n", subregion->name, other->name, mr->name);
             goto done;
         }
     }
     QTAILQ_INSERT_TAIL(&mr->subregions, subregion, subregions_link);
+	//printf("insert %s at the tail of %s\n", subregion->name, mr->name);
 done:
     memory_region_update_pending |= mr->enabled && subregion->enabled;
     memory_region_transaction_commit();
@@ -1878,3 +1882,129 @@ void mtree_info(fprintf_function mon_printf, void *f)
         g_free(ml);
     }
 }
+
+static void dbg_mtree_print_mr(const MemoryRegion *mr, unsigned int level,
+                           hwaddr base,
+                           MemoryRegionListHead *alias_print_queue)
+{
+    MemoryRegionList *new_ml, *ml, *next_ml;
+    MemoryRegionListHead submr_print_queue;
+    const MemoryRegion *submr;
+    unsigned int i;
+
+    if (!mr || !mr->enabled) {
+        return;
+    }
+
+    for (i = 0; i < level; i++) {
+        printf( "  ");
+    }
+
+    if (mr->alias) {
+        MemoryRegionList *ml;
+        bool found = false;
+
+        /* check if the alias is already in the queue */
+        QTAILQ_FOREACH(ml, alias_print_queue, queue) {
+            if (ml->mr == mr->alias && !ml->printed) {
+                found = true;
+            }
+        }
+
+        if (!found) {
+            ml = g_new(MemoryRegionList, 1);
+            ml->mr = mr->alias;
+            ml->printed = false;
+            QTAILQ_INSERT_TAIL(alias_print_queue, ml, queue);
+        }
+        printf( TARGET_FMT_plx "-" TARGET_FMT_plx
+                   " (prio %d, %c%c): alias %s @%s " TARGET_FMT_plx
+                   "-" TARGET_FMT_plx "\n",
+                   base + mr->addr,
+                   base + mr->addr
+                   + (int128_nz(mr->size) ?
+                      (hwaddr)int128_get64(int128_sub(mr->size,
+                                                      int128_one())) : 0),
+                   mr->priority,
+                   mr->romd_mode ? 'R' : '-',
+                   !mr->readonly && !(mr->rom_device && mr->romd_mode) ? 'W'
+                                                                       : '-',
+                   mr->name,
+                   mr->alias->name,
+                   mr->alias_offset,
+                   mr->alias_offset
+                   + (int128_nz(mr->size) ?
+                      (hwaddr)int128_get64(int128_sub(mr->size,
+                                                      int128_one())) : 0));
+    } else {
+        printf(
+                   TARGET_FMT_plx "-" TARGET_FMT_plx " (prio %d, %c%c): %s\n",
+                   base + mr->addr,
+                   base + mr->addr
+                   + (int128_nz(mr->size) ?
+                      (hwaddr)int128_get64(int128_sub(mr->size,
+                                                      int128_one())) : 0),
+                   mr->priority,
+                   mr->romd_mode ? 'R' : '-',
+                   !mr->readonly && !(mr->rom_device && mr->romd_mode) ? 'W'
+                                                                       : '-',
+                   mr->name);
+    }
+
+    QTAILQ_INIT(&submr_print_queue);
+
+    QTAILQ_FOREACH(submr, &mr->subregions, subregions_link) {
+        new_ml = g_new(MemoryRegionList, 1);
+        new_ml->mr = submr;
+        QTAILQ_FOREACH(ml, &submr_print_queue, queue) {
+            if (new_ml->mr->addr < ml->mr->addr ||
+                (new_ml->mr->addr == ml->mr->addr &&
+                 new_ml->mr->priority > ml->mr->priority)) {
+                QTAILQ_INSERT_BEFORE(ml, new_ml, queue);
+                new_ml = NULL;
+                break;
+            }
+        }
+        if (new_ml) {
+            QTAILQ_INSERT_TAIL(&submr_print_queue, new_ml, queue);
+        }
+    }
+
+    QTAILQ_FOREACH(ml, &submr_print_queue, queue) {
+        dbg_mtree_print_mr( ml->mr, level + 1, base + mr->addr,
+                       alias_print_queue);
+    }
+
+    QTAILQ_FOREACH_SAFE(ml, &submr_print_queue, queue, next_ml) {
+        g_free(ml);
+    }
+}
+
+
+void dbg_mtree_info()
+{
+    MemoryRegionListHead ml_head;
+    MemoryRegionList *ml, *ml2;
+    AddressSpace *as;
+
+    QTAILQ_INIT(&ml_head);
+
+    QTAILQ_FOREACH(as, &address_spaces, address_spaces_link) {
+       	printf("%s\n", as->name);
+        dbg_mtree_print_mr( as->root, 0, 0, &ml_head);
+    }
+
+    printf( "aliases\n");
+    /* print aliased regions */
+    QTAILQ_FOREACH(ml, &ml_head, queue) {
+        if (!ml->printed) {
+            printf( "%s\n", ml->mr->name);
+            dbg_mtree_print_mr(ml->mr, 0, 0, &ml_head);
+        }
+    }
+
+    QTAILQ_FOREACH_SAFE(ml, &ml_head, queue, ml2) {
+        g_free(ml);
+    }
+}
+
