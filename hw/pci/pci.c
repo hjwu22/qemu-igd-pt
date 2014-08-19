@@ -48,6 +48,7 @@ static void pcibus_dev_print(Monitor *mon, DeviceState *dev, int indent);
 static char *pcibus_get_dev_path(DeviceState *dev);
 static char *pcibus_get_fw_dev_path(DeviceState *dev);
 static void pcibus_reset(BusState *qbus);
+static void pci_bus_finalize(Object *obj);
 
 static Property pci_props[] = {
     DEFINE_PROP_PCI_DEVFN("addr", PCIDevice, devfn, -1),
@@ -60,34 +61,6 @@ static Property pci_props[] = {
     DEFINE_PROP_END_OF_LIST()
 };
 
-static const VMStateDescription vmstate_pcibus = {
-    .name = "PCIBUS",
-    .version_id = 1,
-    .minimum_version_id = 1,
-    .minimum_version_id_old = 1,
-    .fields      = (VMStateField[]) {
-        VMSTATE_INT32_EQUAL(nirq, PCIBus),
-        VMSTATE_VARRAY_INT32(irq_count, PCIBus,
-                             nirq, 0, vmstate_info_int32,
-                             int32_t),
-        VMSTATE_END_OF_LIST()
-    }
-};
-
-static void pci_bus_realize(BusState *qbus, Error **errp)
-{
-    PCIBus *bus = PCI_BUS(qbus);
-
-    vmstate_register(NULL, -1, &vmstate_pcibus, bus);
-}
-
-static void pci_bus_unrealize(BusState *qbus, Error **errp)
-{
-    PCIBus *bus = PCI_BUS(qbus);
-
-    vmstate_unregister(NULL, &vmstate_pcibus, bus);
-}
-
 static void pci_bus_class_init(ObjectClass *klass, void *data)
 {
     BusClass *k = BUS_CLASS(klass);
@@ -95,8 +68,6 @@ static void pci_bus_class_init(ObjectClass *klass, void *data)
     k->print_dev = pcibus_dev_print;
     k->get_dev_path = pcibus_get_dev_path;
     k->get_fw_dev_path = pcibus_get_fw_dev_path;
-    k->realize = pci_bus_realize;
-    k->unrealize = pci_bus_unrealize;
     k->reset = pcibus_reset;
 }
 
@@ -104,6 +75,7 @@ static const TypeInfo pci_bus_info = {
     .name = TYPE_PCI_BUS,
     .parent = TYPE_BUS,
     .instance_size = sizeof(PCIBus),
+    .instance_finalize = pci_bus_finalize,
     .class_init = pci_bus_class_init,
 };
 
@@ -123,6 +95,17 @@ static uint16_t pci_default_sub_device_id = PCI_SUBDEVICE_ID_QEMU;
 
 static QLIST_HEAD(, PCIHostState) pci_host_bridges;
 
+static const VMStateDescription vmstate_pcibus = {
+    .name = "PCIBUS",
+    .version_id = 1,
+    .minimum_version_id = 1,
+    .minimum_version_id_old = 1,
+    .fields      = (VMStateField []) {
+        VMSTATE_INT32_EQUAL(nirq, PCIBus),
+        VMSTATE_VARRAY_INT32(irq_count, PCIBus, nirq, 0, vmstate_info_int32, int32_t),
+        VMSTATE_END_OF_LIST()
+    }
+};
 static int pci_bar(PCIDevice *d, int reg)
 {
     uint8_t type;
@@ -316,6 +299,8 @@ static void pci_bus_init(PCIBus *bus, DeviceState *parent,
     QLIST_INIT(&bus->child);
 
     pci_host_bus_register(bus, parent);
+
+    vmstate_register(NULL, -1, &vmstate_pcibus, bus);
 }
 
 bool pci_bus_is_express(PCIBus *bus)
@@ -382,6 +367,12 @@ int pci_bus_num(PCIBus *s)
     if (pci_bus_is_root(s))
         return 0;       /* pci host bridge */
     return s->parent_dev->config[PCI_SECONDARY_BUS];
+}
+
+static void pci_bus_finalize(Object *obj)
+{
+    PCIBus *bus = PCI_BUS(obj);
+    vmstate_unregister(NULL, &vmstate_pcibus, bus);
 }
 
 static int get_pci_config_device(QEMUFile *f, void *pv, size_t size)
@@ -554,26 +545,29 @@ int pci_parse_devaddr(const char *addr, int *domp, int *busp,
     p = addr;
     val = strtoul(p, &e, 16);
     if (e == p)
-	return -1;
-    if (*e == ':') {
-	bus = val;
-	p = e + 1;
-	val = strtoul(p, &e, 16);
-	if (e == p)
-	    return -1;
-	if (*e == ':') {
-	    dom = bus;
-	    bus = val;
-	    p = e + 1;
-	    val = strtoul(p, &e, 16);
-	    if (e == p)
 		return -1;
-	}
+	
+    if (*e == ':') {//the fist value might be dom or bus, let's assume the value is bus
+		bus = val;
+		p = e + 1;
+		val = strtoul(p, &e, 16);
+
+		if (e == p)
+	    	return -1;
+
+		if (*e == ':') {//second ':' is shown, then we know the fitst value is dom, second value is bus
+		    dom = bus;
+		    bus = val;
+		    p = e + 1;
+		    val = strtoul(p, &e, 16);
+		    if (e == p)
+				return -1;
+		}
     }
 
     slot = val;
 
-    if (funcp != NULL) {
+    if (funcp != NULL) {//we do not need funcp since this is a single function device
         if (*e != '.')
             return -1;
 
@@ -581,16 +575,18 @@ int pci_parse_devaddr(const char *addr, int *domp, int *busp,
         val = strtoul(p, &e, 16);
         if (e == p)
             return -1;
+		
+		if (*e)
+			return -1;
 
         func = val;
+
     }
 
     /* if funcp == NULL func is 0 */
     if (dom > 0xffff || bus > 0xff || slot > 0x1f || func > 7)
 	return -1;
 
-    if (*e)
-	return -1;
 
     *domp = dom;
     *busp = bus;
@@ -1649,13 +1645,15 @@ PCIDevice *pci_vga_init(PCIBus *bus)
 {
     switch (vga_interface_type) {
     case VGA_CIRRUS:
-        return pci_create_simple(bus, -1, "cirrus-vga");
+        return pci_create_simple(bus, 0x7<<3, "cirrus-vga");
     case VGA_QXL:
-        return pci_create_simple(bus, -1, "qxl-vga");
+        return pci_create_simple(bus, 0x7<<3, "qxl-vga");
     case VGA_STD:
-        return pci_create_simple(bus, -1, "VGA");
+        return pci_create_simple(bus, 0x7<<3, "VGA");
     case VGA_VMWARE:
-        return pci_create_simple(bus, -1, "vmware-svga");
+        return pci_create_simple(bus, 0x7<<3, "vmware-svga");
+    case VGA_INTEL_IGD:
+		return pci_create_simple_multifunction(bus, 0x2<<3, false, "vfio-igd");
     case VGA_NONE:
     default: /* Other non-PCI types. Checking for unsupported types is already
                 done in vl.c. */
@@ -2350,6 +2348,133 @@ static void pci_register_types(void)
     type_register_static(&pci_bus_info);
     type_register_static(&pcie_bus_info);
     type_register_static(&pci_device_type_info);
+}
+
+/* Provides config reads from the host */
+uint32_t host_pci_read_config(PCIDevice *d, uint32_t address, int len)
+{
+
+	int val;
+	ssize_t ret;;
+	int fd = d->pt_dev_fd;
+	if (fd >= 0)
+	{
+        do        
+		{
+			ret = pread(fd,&val,len,address);
+		} while ((ret < 0) && (errno == EINTR || errno == EAGAIN));
+
+		if (ret != len)
+		{
+			PCI_DPRINTF("%s(%04x:%02x:%02x.%x, @0x%x, len=0x%x) %s ret=%zd error=%d\n",
+				 __func__, 0000, d->pt_bus, PCI_SLOT(d->pt_devfn), PCI_FUNC(d->pt_devfn),
+				 address, len, "pread Failed",ret,errno);
+			val = (1UL << (len * 8)) - 1;
+		}
+	} else {
+			PCI_DPRINTF("%s(%04x:%02x:%02x.%x, @0x%x, len=0x%x) %s\n",
+				__func__, 0000, d->pt_bus, PCI_SLOT(d->pt_devfn), PCI_FUNC(d->pt_devfn),
+				address, len, "Open Failed");
+	}
+
+	PCI_DPRINTF("%s(%04x:%02x:%02x.%x, @0x%x, len=0x%x) %x\n",
+                 __func__, 0000, d->pt_bus, PCI_SLOT(d->pt_devfn), PCI_FUNC(d->pt_devfn),
+                 address, len, val);
+    return val;
+}
+
+/* Provides config writes to the host*/
+void host_pci_write_config(PCIDevice *d, uint32_t address, int len, uint32_t val)
+{
+	int fd = d->pt_dev_fd;
+	ssize_t ret;
+	if (fd >= 0)
+	{
+		do
+		{
+			ret = pwrite(fd,&val,len,address);
+		} while ((ret < 0) && (errno == EINTR || errno == EAGAIN));
+	
+
+		if (ret != len)
+		{
+			PCI_DPRINTF("%s(%04x:%02x:%02x.%x, @0x%x, len=0x%x) %x %s ret=%zd error=%d\n",
+				__func__, 0000, d->pt_bus, PCI_SLOT(d->pt_devfn), PCI_FUNC(d->pt_devfn),
+				address, len, val, "pread Failed",ret,errno);
+		}
+	}
+	else
+	{
+		PCI_DPRINTF("%s(%04x:%02x:%02x.%x, @0x%x, len=0x%x) %s\n",
+	                __func__, 0000, d->pt_bus, PCI_SLOT(d->pt_devfn), PCI_FUNC(d->pt_devfn),
+	                address, len, "Open Failed");
+	}
+}
+/* Provides config reads from the host */
+uint32_t __host_pci_read_config(int bus, int slot, int fn, uint32_t address, int len)
+{
+	uint32_t val = 0;
+	int fd;
+	int domain = 0;
+	ssize_t ret;
+	char dir[128], name[128];
+
+	snprintf(dir, sizeof(dir), "/sys/bus/pci/devices/%04x:%02x:%02x.%x/",	
+		domain, bus, slot, fn);
+	snprintf(name, sizeof(name), "%sconfig", dir);
+
+	fd = open(name, O_RDONLY);
+
+ 	if (fd >= 0) {
+ 		do {
+			ret = pread(fd,&val,len,address);
+ 		} while ((ret < 0) && (errno == EINTR || errno == EAGAIN));
+
+ 		if (ret != len)
+ 		{
+ 			PCI_DPRINTF("%s(%04x:%02x:%02x.%x, @0x%x, len=0x%x) %s ret=%zd error=%d\n",
+ 				__func__, 0000, bus, slot, fn, address, len, "pread Failed",ret,errno);
+ 			val = (1UL << (len * 8)) - 1;
+		}
+	} else {
+		PCI_DPRINTF("%s(%04x:%02x:%02x.%x, @0x%x, len=0x%x) %s\n",
+			__func__, 0000, bus, slot, fn, address, len, "Open Failed");
+	}
+
+	PCI_DPRINTF("%s(%04x:%02x:%02x.%x, @0x%x, len=0x%x) %x\n",
+		__func__, 0000, bus, slot, fn, address, len, val);
+	return val;
+}
+
+/* Provides config writes to the host*/
+void __host_pci_write_config(int bus, int slot, int fn, uint32_t address, int len, uint32_t val)
+{
+	int fd;
+	int domain = 0;
+	ssize_t ret;
+	char dir[128], name[128];
+
+	snprintf(dir, sizeof(dir), "/sys/bus/pci/devices/%04x:%02x:%02x.%x/",
+		domain, bus, slot, fn);
+	snprintf(name, sizeof(name), "%sconfig", dir);
+
+	fd = open(name, O_RDWR);
+	
+	if (fd >= 0)
+	{
+		do {
+			ret = pwrite(fd,&val,len,address);
+		} while ((ret < 0) && (errno == EINTR || errno == EAGAIN));
+
+		if (ret != len)
+		{
+			PCI_DPRINTF("%s(%04x:%02x:%02x.%x, @0x%x, len=0x%x) %x %s ret=%zd error=%d\n",
+				__func__, 0000, bus, slot, fn, address, len, val, "pread Failed",ret,errno);
+		}
+	} else {
+		PCI_DPRINTF("%s(%04x:%02x:%02x.%x, @0x%x, len=0x%x) %s\n",
+			__func__, 0000, bus, slot, fn, address, len, "Open Failed");
+	}
 }
 
 type_init(pci_register_types)

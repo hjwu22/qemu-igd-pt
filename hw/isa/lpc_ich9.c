@@ -45,6 +45,16 @@
 #include "hw/pci/pci_bus.h"
 #include "exec/address-spaces.h"
 #include "sysemu/sysemu.h"
+#include "hw/pci/pci.h"
+
+//#define DEBUG_LPC
+#ifdef DEBUG_LPC
+# define LPC_DPRINTF(format, ...)       printf("LPC: " format, ## __VA_ARGS__)
+#else
+# define LPC_DPRINTF(format, ...)       do { } while (0)
+#endif
+#define PASSTHROUGH_INTEL_IGD
+
 
 static int ich9_lpc_sci_irq(ICH9LPCState *lpc);
 
@@ -419,6 +429,33 @@ static int ich9_lpc_post_load(void *opaque, int version_id)
     return 0;
 }
 
+static uint32_t ich9_lpc_config_read(PCIDevice *d,
+                                 uint32_t addr, int len)
+{
+    uint32_t val;
+
+	switch (addr)
+        {
+			case 0x0:
+			case 0x02:
+			case 0x04:
+			//case 0x06:		/*PCI STATUS*/
+			case 0x08:		/* HDR */
+            case 0x2c:      /* SVID - Subsystem Vendor Identification */
+            case 0x2e:      /* SID - Subsystem Identificaion */
+			//case 0x48:
+			//case 0x4c:
+                val = host_pci_read_config(d, addr, len);
+                break;
+            default:
+                val = pci_default_read_config(d, addr, len);
+	}
+    LPC_DPRINTF("%s(%04x:%02x:%02x.%x, @0x%x, len=0x%x) %x\n", __func__,
+        0000, 00, PCI_SLOT(d->devfn),PCI_FUNC(d->devfn), addr, len, val);
+
+    return val;
+}
+
 static void ich9_lpc_config_write(PCIDevice *d,
                                   uint32_t addr, uint32_t val, int len)
 {
@@ -426,7 +463,9 @@ static void ich9_lpc_config_write(PCIDevice *d,
     uint32_t rbca_old = pci_get_long(d->config + ICH9_LPC_RCBA);
 
     pci_default_write_config(d, addr, val, len);
-    if (ranges_overlap(addr, len, ICH9_LPC_PMBASE, 4)) {
+	LPC_DPRINTF("%s(%04x:%02x:%02x.%x, @0x%x, 0x%x, len=0x%x)\n", __func__,
+	            0000, 00, PCI_SLOT(d->devfn),PCI_FUNC(d->devfn), addr, val, len);
+	if (ranges_overlap(addr, len, ICH9_LPC_PMBASE, 4)) {
         ich9_lpc_pmbase_update(lpc);
     }
     if (ranges_overlap(addr, len, ICH9_LPC_RCBA, 4)) {
@@ -456,6 +495,7 @@ static void ich9_lpc_reset(DeviceState *qdev)
                      ICH9_LPC_PIRQ_ROUT_DEFAULT);
     }
     pci_set_byte(d->config + ICH9_LPC_ACPI_CTRL, ICH9_LPC_ACPI_CTRL_DEFAULT);
+	pci_set_byte(d->config + 0x82, 0x1|(1<<1)|(1<<2)|(1<<3));
 
     pci_set_long(d->config + ICH9_LPC_PMBASE, ICH9_LPC_PMBASE_DEFAULT);
     pci_set_long(d->config + ICH9_LPC_RCBA, ICH9_LPC_RCBA_DEFAULT);
@@ -570,6 +610,31 @@ static int ich9_lpc_initfn(PCIDevice *d)
 
     isa_bus = isa_bus_new(&d->qdev, get_system_io());
 
+#ifdef PASSTHROUGH_INTEL_IGD
+	
+	int fd;
+	char dir[128], name[128];
+			
+	d->pt_domain = 0;
+	d->pt_bus = 0;
+	d->pt_devfn = PCI_DEVFN(0x1f, 0);
+			
+	snprintf(dir, sizeof(dir), "/sys/bus/pci/devices/%04x:%02x:%02x.%x/",
+				 0, 0, 0x1f, 0);
+	snprintf(name, sizeof(name), "%sconfig", dir);
+		
+	fd = open(name, O_RDONLY);
+	if(fd < 0){
+		error_report("%s: Prelinmarily pass through LPC failed\n", __func__);
+		return -1;
+	}else
+		d->pt_dev_fd = fd;
+	
+#else
+			d->pt_dev_fd = -1;
+#endif
+
+
     pci_set_long(d->wmask + ICH9_LPC_PMBASE,
                  ICH9_LPC_PMBASE_BASE_ADDRESS_MASK);
 
@@ -577,7 +642,10 @@ static int ich9_lpc_initfn(PCIDevice *d)
                             "lpc-rbca-mmio", ICH9_CC_SIZE);
 
     lpc->isa_bus = isa_bus;
-
+	
+	pci_set_long(d->wmask + ICH9_LPC_PMBASE,
+                 ICH9_LPC_PMBASE_BASE_ADDRESS_MASK);
+	
     ich9_cc_init(lpc);
     apm_init(d, &lpc->apm, ich9_apm_ctrl_changed, lpc);
 
@@ -645,10 +713,13 @@ static void ich9_lpc_class_init(ObjectClass *klass, void *data)
     k->init = ich9_lpc_initfn;
     dc->vmsd = &vmstate_ich9_lpc;
     k->config_write = ich9_lpc_config_write;
-    dc->desc = "ICH9 LPC bridge";
+    k->config_read = ich9_lpc_config_read;
+	dc->desc = "ICH9 LPC bridge";
     k->vendor_id = PCI_VENDOR_ID_INTEL;
-    k->device_id = PCI_DEVICE_ID_INTEL_ICH9_8;
-    k->revision = ICH9_A2_LPC_REVISION;
+	k->device_id = __host_pci_read_config(0, 0x1f, 0, 0x02, 2);
+    k->revision =  __host_pci_read_config(0, 0x1f, 0, 0x08, 2);
+    //k->device_id = PCI_DEVICE_ID_INTEL_ICH9_8;
+    //k->revision = ICH9_A2_LPC_REVISION;
     k->class_id = PCI_CLASS_BRIDGE_ISA;
     /*
      * Reason: part of ICH9 southbridge, needs to be wired up by

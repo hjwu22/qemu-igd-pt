@@ -6,6 +6,7 @@
  *               Isaku Yamahata <yamahata at valinux co jp>
  *               VA Linux Systems Japan K.K.
  * Copyright (C) 2012 Jason Baron <jbaron@redhat.com>
+ *               2013 Andrew Barnes <andy@outsideglobe.com> IGD Support
  *
  * This is based on piix_pci.c, but heavily modified.
  *
@@ -30,6 +31,22 @@
 #include "hw/hw.h"
 #include "hw/pci-host/q35.h"
 #include "qapi/visitor.h"
+#include "hw/pci/pci.h" //IGD PASSTHROUGH
+#include "qemu/error-report.h"
+
+//#define DEBUG_Q35
+#ifdef DEBUG_Q35
+# define Q35_DPRINTF(format, ...)\
+do {printf("Q35: " format, ## __VA_ARGS__);} while(0)
+#else
+# define Q35_DPRINTF(format, ...)       do { } while (0)
+#endif
+ 
+ /* for intel-spec conforming config */
+#define PASSTHROUGH_INTEL_IGD//FIXME:
+#define IGD_PASSTHROUGH
+#define CORRECT_CONFIG
+#define EMUQ35GFX
 
 /****************************************************************************
  * Q35 host
@@ -272,7 +289,7 @@ static void mch_update_smram(MCHPCIState *mch)
     PCIDevice *pd = PCI_DEVICE(mch);
 
     memory_region_transaction_begin();
-    smram_update(&mch->smram_region, pd->config[MCH_HOST_BRIDGE_SMRAM],
+    smram_update(&mch->smram_region, pd->config[MCH_HOST_BRDIGE_SMRAM],
                     mch->smm_enabled);
     memory_region_transaction_commit();
 }
@@ -283,16 +300,98 @@ static void mch_set_smm(int smm, void *arg)
     PCIDevice *pd = PCI_DEVICE(mch);
 
     memory_region_transaction_begin();
-    smram_set_smm(&mch->smm_enabled, smm, pd->config[MCH_HOST_BRIDGE_SMRAM],
+    smram_set_smm(&mch->smm_enabled, smm, pd->config[MCH_HOST_BRDIGE_SMRAM],
                     &mch->smram_region);
     memory_region_transaction_commit();
 }
 
+static void mch_update_gfx_stolen(MCHPCIState *mch)
+{
+
+	PCIDevice *pd = PCI_DEVICE(mch);
+
+	memory_region_transaction_begin();
+	memory_region_set_enabled(&mch->GFX_GTT_stolen, true);
+	memory_region_transaction_commit();
+	
+	memory_region_transaction_begin();
+	memory_region_set_enabled(&mch->GFX_stolen, true);
+	memory_region_transaction_commit();
+
+}
+
+static uint32_t mch_read_config(PCIDevice *d,
+                                 uint32_t address, int len)
+{
+    uint32_t val;
+	MCHPCIState *mch = MCH_PCI_DEVICE(d);
+
+#ifdef IGD_PASSTHROUGH
+
+	switch (address)
+	{
+		/* According to XEN code, this is all that is requried.
+		 * VID,DID,RID are configured in _init method */
+		case D0F0_VID:		/*VID*/
+		case D0F0_DID:		/*DID*/
+		case D0F0_RID:		/*Revision*/
+		case D0F0_HDR:		/*Header Type*/
+		case D0F0_SVID:			/* SVID - Subsystem Vendor Identification */
+		case D0F0_SID:      	/* SID - Subsystem Identification */
+		case D0F0_PAVPC:		/* PAVPC - Protected Audio Video Path Control  */
+
+#ifndef EMUQ35GFX	
+		case D0F0_TOM:      /* TOM - Top of memory, 8 bytes */
+		case D0F0_GGC:      /* MGGC - SNB Graphics Control Register */
+		case 0x54:		/* DEVEN */
+		case 0xB0:      /* HSW:BDSM base of GFX stolen memory */
+		case 0xB4:      /* HSW:BGSM base of GFX GTT stolen memory */
+#endif
+			val = host_pci_read_config(d,
+									   address, len);
+
+			break;
+		default:
+			val = pci_default_read_config(d, address, len);
+	  }
+#else
+
+	val = pci_default_read_config(d, address, len);
+
+#endif
+
+	if (ranges_overlap(address, len, D0F0_GGC,
+                       D0F0_GGC_SIZE)) {
+        mch_update_gfx_stolen(mch);
+    }
+	Q35_DPRINTF("%s(%04x:%02x:%02x.%x, @0x%x, len=0x%x) %x\n", 
+				__func__, 0000, 00, 
+				PCI_SLOT(d->devfn), PCI_FUNC(d->devfn), 
+				address, len, val);
+
+	return val;
+}
 static void mch_write_config(PCIDevice *d,
                               uint32_t address, uint32_t val, int len)
 {
     MCHPCIState *mch = MCH_PCI_DEVICE(d);
-
+	Q35_DPRINTF("%s(%04x:%02x:%02x.%x, @0x%x, len=0x%x) %x\n",                                                             
+			__func__, 0000, 00,                                                                            
+			PCI_SLOT(d->devfn), PCI_FUNC(d->devfn),                                                        
+			address, len, val);
+#ifdef IGD_PASSTHROUGH
+	switch (address)
+	{
+		
+	  case 0x58:
+	  //case 0x50:
+		host_pci_write_config(d,
+								address, len, val);
+		return;
+		break;
+		//to be expanded
+	}
+#endif
     /* XXX: implement SMRAM.D_LOCK */
     pci_default_write_config(d, address, val, len);
 
@@ -306,17 +405,84 @@ static void mch_write_config(PCIDevice *d,
         mch_update_pciexbar(mch);
     }
 
-    if (ranges_overlap(address, len, MCH_HOST_BRIDGE_SMRAM,
-                       MCH_HOST_BRIDGE_SMRAM_SIZE)) {
+    if (ranges_overlap(address, len, MCH_HOST_BRDIGE_SMRAM,
+                       MCH_HOST_BRDIGE_SMRAM_SIZE)) {
         mch_update_smram(mch);
     }
+	
+	if (ranges_overlap(address, len, D0F0_BGSM,
+                       D0F0_BDSM_SIZE)) {
+        mch_update_gfx_stolen(mch);
+    }
+	//if (ranges_overlap(address, len, D0F0_GGC
+    //                  D0F0_GGC_SIZE)) {
+    //    mch_update_gfx_stolen(mch);
+    //}
+}
+
+
+
+
+static void mch_init_gfx_stolen(PCIDevice *d)
+{
+	MCHPCIState *mch = MCH_PCI_DEVICE(d);
+	
+
+#define PAGE_MASK ~((1 << 13) - 1)
+#define PAGE_ALIGN(addr) (((addr) & PAGE_MASK))
+
+
+#ifndef EMUQ35GFX
+	unsigned short GGC = mch_read_config(d, D0F0_GGC, 2); 
+	unsigned char GMS = (GGC & Q35_MASK(16, 7, 3)) >> 3;
+	unsigned short GGMS = (GGC & Q35_MASK(16, 9, 8)) >> 8;
+	mch->GFX_GTT_stolen_size = GGMS << 20; //1MB
+	mch->GFX_stolen_size = GMS << 25; //32MB
+	mch->GFX_stolen_base = 
+		PAGE_ALIGN(host_pci_read_config(d, 0xB0, 4));
+	mch->GFX_GTT_stolen_base = 
+		PAGE_ALIGN(host_pci_read_config(d, 0xB4, 4));
+#else
+	unsigned short GGC = D0F0_GGC_IVD | D0F0_GGC_GGCLCK;
+	unsigned short GMS = GFX_STOLEN_SIZE >>25;
+	GGC = GGC | GMS<<3 | 0x2 <<8;
+	mch->GFX_GTT_stolen_size = GFX_GTT_STOLEN_SIZE;//consider delete mch fields
+	mch->GFX_GTT_stolen_base = GFX_GTT_STOLEN_BASE;
+	mch->GFX_stolen_size = GFX_STOLEN_SIZE;//TODO: make this configurable, limited to host size
+	mch->GFX_stolen_base = GFX_STOLEN_BASE;
+    pci_set_word(d->config + D0F0_GGC, GGC);
+#endif
+
+	Q35_DPRINTF("GFX Stolen Base: %016llx, GFX_stolen_size: %016llX\n"
+		"GFX GTT Stolen size: %016llx, GFX GTT Stolen base: %016llX\n",
+		mch->GFX_stolen_base, mch->GFX_stolen_size,
+		mch->GFX_GTT_stolen_base, mch->GFX_GTT_stolen_size);
+
+	memory_region_init_ram(&mch->GFX_stolen, OBJECT(mch), "gfx-region",
+						 mch->GFX_stolen_size);
+	memory_region_add_subregion_overlap(mch->system_memory, mch->GFX_stolen_base,
+									&mch->GFX_stolen, 1);
+	memory_region_set_enabled(&mch->GFX_stolen, false);
+
+	memory_region_init_ram(&mch->GFX_GTT_stolen, OBJECT(mch), "gfx-gtt-region",
+						 mch->GFX_GTT_stolen_size);
+	memory_region_add_subregion_overlap(mch->system_memory, mch->GFX_GTT_stolen_base,
+									&mch->GFX_GTT_stolen, 1);
+	memory_region_set_enabled(&mch->GFX_GTT_stolen, false);
+	
 }
 
 static void mch_update(MCHPCIState *mch)
 {
     mch_update_pciexbar(mch);
+	//dbg_mtree_info();
+	//mch_update_gfx_stolen(mch);
+	//dbg_mtree_info();
     mch_update_pam(mch);
+	//dbg_mtree_info();
     mch_update_smram(mch);
+	dbg_mtree_info();
+	
 }
 
 static int mch_post_load(void *opaque, int version_id)
@@ -339,6 +505,7 @@ static const VMStateDescription vmstate_mch = {
     }
 };
 
+
 static void mch_reset(DeviceState *qdev)
 {
     PCIDevice *d = PCI_DEVICE(qdev);
@@ -347,15 +514,118 @@ static void mch_reset(DeviceState *qdev)
     pci_set_quad(d->config + MCH_HOST_BRIDGE_PCIEXBAR,
                  MCH_HOST_BRIDGE_PCIEXBAR_DEFAULT);
 
-    d->config[MCH_HOST_BRIDGE_SMRAM] = MCH_HOST_BRIDGE_SMRAM_DEFAULT;
+    d->config[MCH_HOST_BRDIGE_SMRAM] = MCH_HOST_BRIDGE_SMRAM_DEFAULT;
 
     mch_update(mch);
 }
+static inline void set_intel_config(PCIDevice *d)
+{
+
+	/* Unsure if this is important. but the following is as per INTEL spec
+	 * which otherwise is non-conforming. */
+	 MCHPCIState *mch = MCH_PCI_DEVICE(d);
+
+	/* PCICMD Register */
+	pci_set_word(d->wmask + D0F0_PCICMD,
+					(D0F0_PCICMD_SERR | D0F0_PCICMD_PERR)); // set writable
+	pci_set_word(d->config + D0F0_PCICMD,
+					(D0F0_PCICMD_MAE | D0F0_PCICMD_BME)); // set 1
+
+	/* PCISTS Register */
+	pci_set_word(d->w1cmask + D0F0_PCISTS,
+					(D0F0_PCISTS_DPE | D0F0_PCISTS_SSE | D0F0_PCISTS_RMAS |
+			         D0F0_PCISTS_RTAS | D0F0_PCISTS_DPD));
+	pci_set_word(d->config + D0F0_PCISTS,
+	                 (D0F0_PCISTS_CLIST | D0F0_PCISTS_FB2B));
+
+    /* CC Register */
+    /* No RW Registers */
+    //pci_set_byte(d->config + D0F0_CC + D0F0_CC_BCC, 0x06); /* indicating a bridge device */
+
+    /* PXPEPBAR - TODO? */
+    pci_set_quad(d->wmask + D0F0_PXPEPBAR, 
+					(D0F0_PXPEPBAR_PXPEPBAR | D0F0_PXPEPBAR_PXPEPBAREN)); // set writable
+  
+    /* MCHBAR - TODO? */
+    pci_set_quad(d->wmask + D0F0_MCHBAR, 
+				(D0F0_MCHBAR_MCHBAR | D0F0_MCHBAR_MCHBAREN)); // set writable
+
+
+    /* DEVEN */
+    pci_set_long(d->wmask + D0F0_DEVEN, 0x0 | D0F0_DEVEN_D0EN|D0F0_DEVEN_D2EN|D0F0_DEVEN_D3EN);
+    pci_set_long(d->config + D0F0_DEVEN, D0F0_DEVEN_D0EN | 
+		D0F0_DEVEN_D2EN |
+		D0F0_DEVEN_D3EN | D0F0_DEVEN_D1F0EN);
+	//HDA(D3) is disabled
+	
+    /* DMIBAR */
+    pci_set_quad(d->wmask + D0F0_DMIBAR, 
+					(D0F0_DMIBAR_DMIBAR | D0F0_DMIBAR_DMIBAREN)); // set writable
+
+    /* TOM - Top Of Memory Register */
+    pci_set_quad(d->wmask + D0F0_TOM, (D0F0_TOM_TOM | D0F0_TOM_LOCK ));
+	pci_set_quad(d->config + D0F0_TOM, 
+		((mch->below_4g_mem_size + mch->above_4g_mem_size)| D0F0_TOM_LOCK ));
+	
+    /* TOUUD - Top Of Upper Usable DRAM Register */
+    pci_set_quad(d->wmask + D0F0_TOUUD, 
+					(D0F0_TOUUD_TOUUD | D0F0_TOUUD_LOCK ));
+	pci_set_quad(d->config + D0F0_TOM, 
+			((mch->below_4g_mem_size + mch->above_4g_mem_size)| D0F0_TOM_LOCK ));
+
+	/* BDSM - Base Data of Stolen Memory Register */
+    pci_set_long(d->wmask + D0F0_BDSM, (D0F0_BDSM_BDSM | D0F0_BDSM_LOCK));
+	pci_set_long(d->config + D0F0_BDSM, (GFX_STOLEN_BASE| D0F0_BDSM_LOCK));
+
+    /* BGSM - Base of GTT Stolen Memory Register */
+    pci_set_long(d->wmask + D0F0_BGSM, (D0F0_BGSM_BGSM | D0F0_BGSM_LOCK));
+	pci_set_long(d->config + D0F0_BDSM, (GFX_GTT_STOLEN_BASE| D0F0_BDSM_LOCK));
+
+    /* TSEG - G Memory Base Register */
+    pci_set_long(d->wmask + D0F0_TSEG, 
+					(D0F0_TSEG_TSEGMB | D0F0_TSEG_LOCK));
+
+    /* TOLUD - Top of Low Usable DRAM */
+    pci_set_long(d->wmask + D0F0_TOLUD, 
+					(D0F0_TOLUD_TOLUD | D0F0_TOLUD_LOCK));
+	pci_set_long(d->config + D0F0_TOLUD, 
+					(MCH_HOST_BRIDGE_PCIEXBAR_DEFAULT | D0F0_TOLUD_LOCK));
+
+}
+
+
 
 static int mch_init(PCIDevice *d)
 {
     int i;
     MCHPCIState *mch = MCH_PCI_DEVICE(d);
+
+	
+#ifdef PASSTHROUGH_INTEL_IGD
+
+		int fd;
+		char dir[128], name[128];
+		
+		d->pt_domain = 0;
+		d->pt_bus = 0;
+		d->pt_devfn = PCI_DEVFN(0x0, 0);
+
+		mch->smm_enabled = 1;	
+		
+		snprintf(dir, sizeof(dir), "/sys/bus/pci/devices/%04x:%02x:%02x.%x/",
+				 0, 0, 0x0, 0);
+		snprintf(name, sizeof(name), "%sconfig", dir);
+	
+		fd = open(name, O_RDONLY);
+		if(fd < 0){
+			error_report("%s: Prelinmarily pass through LPC failed\n", __func__);
+			return -1;
+		}else
+			d->pt_dev_fd = fd;
+#else
+		d->pt_dev_fd = -1;
+#endif
+
 
     /* setup pci memory mapping */
     pc_pci_as_mapping_init(OBJECT(mch), mch->system_memory,
@@ -367,7 +637,9 @@ static int mch_init(PCIDevice *d)
                              mch->pci_address_space, 0xa0000, 0x20000);
     memory_region_add_subregion_overlap(mch->system_memory, 0xa0000,
                                         &mch->smram_region, 1);
+	
     memory_region_set_enabled(&mch->smram_region, false);
+	
     init_pam(DEVICE(mch), mch->ram_memory, mch->system_memory, mch->pci_address_space,
              &mch->pam_regions[0], PAM_BIOS_BASE, PAM_BIOS_SIZE);
     for (i = 0; i < 12; ++i) {
@@ -375,6 +647,14 @@ static int mch_init(PCIDevice *d)
                  &mch->pam_regions[i+1], PAM_EXPAN_BASE + i * PAM_EXPAN_SIZE,
                  PAM_EXPAN_SIZE);
     }
+	
+	set_intel_config(d);
+	
+#ifdef PASSTHROUGH_INTEL_IGD
+
+	mch_init_gfx_stolen(d);
+
+#endif
     return 0;
 }
 
@@ -395,13 +675,16 @@ static void mch_class_init(ObjectClass *klass, void *data)
 
     k->init = mch_init;
     k->config_write = mch_write_config;
+	k->config_read = mch_read_config;
     dc->reset = mch_reset;
     set_bit(DEVICE_CATEGORY_BRIDGE, dc->categories);
     dc->desc = "Host bridge";
     dc->vmsd = &vmstate_mch;
     k->vendor_id = PCI_VENDOR_ID_INTEL;
-    k->device_id = PCI_DEVICE_ID_INTEL_Q35_MCH;
-    k->revision = MCH_HOST_BRIDGE_REVISION_DEFAULT;
+	k->device_id = __host_pci_read_config(0, 0, 0, 0x02, 2);
+    k->revision =  __host_pci_read_config(0, 0, 0, 0x08, 2);
+	//k->device_id = PCI_DEVICE_ID_INTEL_Q35_MCH;
+    //k->revision = MCH_HOST_BRIDGE_REVISION_DEFAULT;
     k->class_id = PCI_CLASS_BRIDGE_HOST;
     /*
      * PCI-facing part of the host bridge, not usable without the
