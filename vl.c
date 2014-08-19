@@ -247,6 +247,7 @@ static struct {
     { .driver = "isa-cirrus-vga",       .flag = &default_vga       },
     { .driver = "vmware-svga",          .flag = &default_vga       },
     { .driver = "qxl-vga",              .flag = &default_vga       },
+    { .driver = "igd-vga",              .flag = &default_vga       },
 };
 
 static QemuOptsList qemu_rtc_opts = {
@@ -2126,6 +2127,10 @@ static bool cg3_vga_available(void)
 {
     return object_class_by_name("cgthree");
 }
+static bool intel_igd_vga_available(void)
+{	
+	return object_class_by_name("vfio-igd");
+}
 
 static void select_vgahw (const char *p)
 {
@@ -2174,6 +2179,14 @@ static void select_vgahw (const char *p)
             vga_interface_type = VGA_CG3;
         } else {
             fprintf(stderr, "Error: CG3 framebuffer not available\n");
+            exit(0);
+        }
+	} else if (strstart(p, "igd", &opts)) {
+        if (intel_igd_vga_available()) {
+            vga_interface_type = VGA_INTEL_IGD;
+			display_type = DT_NONE;
+        } else {
+            fprintf(stderr, "Error: INTEL IGD passthrough is not available\n");
             exit(0);
         }
     } else if (!strstart(p, "none", &opts)) {
