@@ -112,6 +112,9 @@ typedef struct PCIIORegion {
 #define PCI_NUM_REGIONS 7
 
 enum {
+	INTEL_IGD_IO,
+	INTEL_OPREGION,
+	INTEL_MCHBAR,
     QEMU_PCI_VGA_MEM,
     QEMU_PCI_VGA_IO_LO,
     QEMU_PCI_VGA_IO_HI,
@@ -120,6 +123,7 @@ enum {
 
 #define QEMU_PCI_VGA_MEM_BASE 0xa0000
 #define QEMU_PCI_VGA_MEM_SIZE 0x20000
+#define MCHBAR_BASE 0x140000
 #define QEMU_PCI_VGA_IO_LO_BASE 0x3b0
 #define QEMU_PCI_VGA_IO_LO_SIZE 0xc
 #define QEMU_PCI_VGA_IO_HI_BASE 0x3c0
@@ -297,6 +301,12 @@ struct PCIDevice {
     MSIVectorUseNotifier msix_vector_use_notifier;
     MSIVectorReleaseNotifier msix_vector_release_notifier;
     MSIVectorPollNotifier msix_vector_poll_notifier;
+
+	int pt_dev_fd;
+	int32_t pt_devfn;
+	int32_t pt_bus;
+	int32_t pt_domain;
+	
 };
 
 void pci_register_bar(PCIDevice *pci_dev, int region_num,
@@ -747,5 +757,11 @@ extern const VMStateDescription vmstate_pci_device;
     .flags      = VMS_STRUCT|VMS_POINTER,                            \
     .offset     = vmstate_offset_pointer(_state, _field, PCIDevice), \
 }
+
+uint32_t host_pci_read_config(PCIDevice *d, uint32_t address, int len);
+void host_pci_write_config(PCIDevice *d, uint32_t address, int len, uint32_t val);
+uint32_t __host_pci_read_config(int bus, int slot, int fn, uint32_t address, int len);
+void __host_pci_write_config(int bus, int slot, int fn, uint32_t address, int len, uint32_t val);
+
 
 #endif
