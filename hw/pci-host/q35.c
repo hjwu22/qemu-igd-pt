@@ -481,7 +481,7 @@ static void mch_update(MCHPCIState *mch)
     mch_update_pam(mch);
 	//dbg_mtree_info();
     mch_update_smram(mch);
-	dbg_mtree_info();
+	//dbg_mtree_info();
 	
 }
 

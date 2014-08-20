@@ -1087,6 +1087,10 @@ for opt do
   ;;
   --enable-quorum) quorum="yes"
   ;;
+  --disable-igd-passthrough) igd_passthrough="no"
+  ;;
+  --enable-igd-passthrough) igd_passthrough="yes"
+  ;;
   *) echo "ERROR: unknown option $opt"; show_help="yes"
   ;;
   esac
@@ -1350,7 +1354,8 @@ Advanced options (experts only):
   --enable-vhdx            enable support for the Microsoft VHDX image format
   --disable-quorum         disable quorum block filter support
   --enable-quorum          enable quorum block filter support
-
+  --enable-igd-passthrough  enable passthrough Intel IGD
+  --disable-igd-passthrough disable passthrough Intel IGD
 NOTE: The object files are built at the place where configure is launched
 EOF
 exit 1
@@ -4183,7 +4188,7 @@ echo "vhdx              $vhdx"
 echo "Quorum            $quorum"
 echo "lzo support       $lzo"
 echo "snappy support    $snappy"
-
+echo "IGD passthrough   $igd_passthrough"
 if test "$sdl_too_old" = "yes"; then
 echo "-> Your SDL version is too old - please upgrade to have SDL support"
 fi
@@ -4629,6 +4634,11 @@ if test "$libusb" = "yes"; then
   echo "HOST_USB=libusb legacy" >> $config_host_mak
 else
   echo "HOST_USB=stub" >> $config_host_mak
+fi
+
+############################## INTEL IGD PASSTHROUGH
+if test "$igd_passthrough" = "yes" && test "$targetos" = Linux && test "$cpu" = i386 -o "$cpu" = x86_64; then
+  echo "CONFIG_INTEL_IGD_PASSTHROUGH=y" >> $config_host_mak
 fi
 
 # TPM passthrough support?
