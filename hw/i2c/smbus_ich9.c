@@ -34,13 +34,23 @@
 
 #include "hw/i386/ich9.h"
 
+
+//#define DEBUG
+#ifdef DEBUG
+#define DPRINTF(fmt, ...) \
+    do { fprintf(stderr, "smbus: " fmt, ## __VA_ARGS__); } while (0)
+#else
+#define DPRINTF(fmt, ...) \
+    do { } while (0)
+#endif
+
 #define TYPE_ICH9_SMB_DEVICE "ICH9 SMB"
 #define ICH9_SMB_DEVICE(obj) \
      OBJECT_CHECK(ICH9SMBState, (obj), TYPE_ICH9_SMB_DEVICE)
 
 typedef struct ICH9SMBState {
     PCIDevice dev;
-
+	MemoryRegion bar0;
     PMSMBus smb;
 } ICH9SMBState;
 
@@ -59,7 +69,7 @@ static void ich9_smbus_write_config(PCIDevice *d, uint32_t address,
                                     uint32_t val, int len)
 {
     ICH9SMBState *s = ICH9_SMB_DEVICE(d);
-
+	
     pci_default_write_config(d, address, val, len);
     if (range_covers_byte(address, len, ICH9_SMB_HOSTC)) {
         uint8_t hostc = s->dev.config[ICH9_SMB_HOSTC];
@@ -70,6 +80,7 @@ static void ich9_smbus_write_config(PCIDevice *d, uint32_t address,
             memory_region_set_enabled(&s->smb.io, false);
         }
     }
+	DPRINTF("%s(@0x%lx, 0x%lx, %d)\n", __func__, address, val, len);
 }
 
 static int ich9_smbus_initfn(PCIDevice *d)
@@ -81,7 +92,24 @@ static int ich9_smbus_initfn(PCIDevice *d)
 
     pci_set_byte(d->config + ICH9_SMB_HOSTC, 0);
     /* TODO bar0, bar1: 64bit BAR support*/
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 
+	//memory_region_init(&s->bar0, OBJECT(dev), "smbus-bar0", 0x2000000);
+
+    /* XXX: add byte swapping apertures */
+    //memory_region_add_subregion(&s->pci_bar, 0, &s->cirrus_linear_io);
+    //memory_region_add_subregion(&s->pci_bar, 0x1000000,
+     //                           &s->cirrus_linear_bitblt_io);
+
+     /* setup memory space */
+     /* memory #0 LFB */
+     /* memory #1 memory-mapped I/O */
+     /* XXX: s->vga.vram_size must be a power of two */
+     //pci_register_bar(&d->dev, 0, PCI_BASE_ADDRESS_MEM_PREFETCH, &s->pci_bar);
+     //if (device_id == CIRRUS_ID_CLGD5446) {
+     //    pci_register_bar(&d->dev, 1, 0, &s->cirrus_mmio_io);
+     //}
+#endif
     pm_smbus_init(&d->qdev, &s->smb);
     pci_register_bar(d, ICH9_SMB_SMB_BASE_BAR, PCI_BASE_ADDRESS_SPACE_IO,
                      &s->smb.io);
@@ -94,9 +122,16 @@ static void ich9_smb_class_init(ObjectClass *klass, void *data)
     PCIDeviceClass *k = PCI_DEVICE_CLASS(klass);
 
     k->vendor_id = PCI_VENDOR_ID_INTEL;
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
+	k->device_id = __host_pci_read_config(0, 0x1f, 3, 0x02, 2);
+    k->revision =  __host_pci_read_config(0, 0x1f, 3, 0x08, 2);
+	k->subsystem_vendor_id = __host_pci_read_config(0, 0x1f, 3, 0x2c, 2);
+	k->subsystem_id =  __host_pci_read_config(0, 0x1f, 3, 0x2e, 2);
+#else
     k->device_id = PCI_DEVICE_ID_INTEL_ICH9_6;
     k->revision = ICH9_A2_SMB_REVISION;
-    k->class_id = PCI_CLASS_SERIAL_SMBUS;
+#endif
+	k->class_id = PCI_CLASS_SERIAL_SMBUS;
     dc->vmsd = &vmstate_ich9_smbus;
     dc->desc = "ICH9 SMBUS Bridge";
     k->init = ich9_smbus_initfn;

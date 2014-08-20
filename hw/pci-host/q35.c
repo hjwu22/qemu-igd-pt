@@ -43,8 +43,6 @@ do {printf("Q35: " format, ## __VA_ARGS__);} while(0)
 #endif
  
  /* for intel-spec conforming config */
-#define PASSTHROUGH_INTEL_IGD//FIXME:
-#define IGD_PASSTHROUGH
 #define CORRECT_CONFIG
 #define EMUQ35GFX
 
@@ -304,6 +302,7 @@ static void mch_set_smm(int smm, void *arg)
                     &mch->smram_region);
     memory_region_transaction_commit();
 }
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 
 static void mch_update_gfx_stolen(MCHPCIState *mch)
 {
@@ -319,14 +318,14 @@ static void mch_update_gfx_stolen(MCHPCIState *mch)
 	memory_region_transaction_commit();
 
 }
-
+#endif
 static uint32_t mch_read_config(PCIDevice *d,
                                  uint32_t address, int len)
 {
     uint32_t val;
 	MCHPCIState *mch = MCH_PCI_DEVICE(d);
 
-#ifdef IGD_PASSTHROUGH
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 
 	switch (address)
 	{
@@ -379,12 +378,11 @@ static void mch_write_config(PCIDevice *d,
 			__func__, 0000, 00,                                                                            
 			PCI_SLOT(d->devfn), PCI_FUNC(d->devfn),                                                        
 			address, len, val);
-#ifdef IGD_PASSTHROUGH
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 	switch (address)
 	{
 		
 	  case 0x58:
-	  //case 0x50:
 		host_pci_write_config(d,
 								address, len, val);
 		return;
@@ -414,14 +412,12 @@ static void mch_write_config(PCIDevice *d,
                        D0F0_BDSM_SIZE)) {
         mch_update_gfx_stolen(mch);
     }
-	//if (ranges_overlap(address, len, D0F0_GGC
-    //                  D0F0_GGC_SIZE)) {
-    //    mch_update_gfx_stolen(mch);
-    //}
+
 }
 
 
 
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 
 static void mch_init_gfx_stolen(PCIDevice *d)
 {
@@ -471,7 +467,7 @@ static void mch_init_gfx_stolen(PCIDevice *d)
 	memory_region_set_enabled(&mch->GFX_GTT_stolen, false);
 	
 }
-
+#endif 
 static void mch_update(MCHPCIState *mch)
 {
     mch_update_pciexbar(mch);
@@ -601,7 +597,7 @@ static int mch_init(PCIDevice *d)
     MCHPCIState *mch = MCH_PCI_DEVICE(d);
 
 	
-#ifdef PASSTHROUGH_INTEL_IGD
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 
 		int fd;
 		char dir[128], name[128];
@@ -651,10 +647,9 @@ static int mch_init(PCIDevice *d)
 	set_intel_config(d);
 	
 #ifdef PASSTHROUGH_INTEL_IGD
-
 	mch_init_gfx_stolen(d);
-
 #endif
+
     return 0;
 }
 
@@ -681,10 +676,13 @@ static void mch_class_init(ObjectClass *klass, void *data)
     dc->desc = "Host bridge";
     dc->vmsd = &vmstate_mch;
     k->vendor_id = PCI_VENDOR_ID_INTEL;
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 	k->device_id = __host_pci_read_config(0, 0, 0, 0x02, 2);
     k->revision =  __host_pci_read_config(0, 0, 0, 0x08, 2);
-	//k->device_id = PCI_DEVICE_ID_INTEL_Q35_MCH;
-    //k->revision = MCH_HOST_BRIDGE_REVISION_DEFAULT;
+#else
+	k->device_id = PCI_DEVICE_ID_INTEL_Q35_MCH;
+    k->revision = MCH_HOST_BRIDGE_REVISION_DEFAULT;
+#endif
     k->class_id = PCI_CLASS_BRIDGE_HOST;
     /*
      * PCI-facing part of the host bridge, not usable without the

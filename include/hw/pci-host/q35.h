@@ -53,12 +53,14 @@ typedef struct MCHPCIState {
     MemoryRegion *address_space_io;
     PAMMemoryRegion pam_regions[13];
     MemoryRegion smram_region;
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 	MemoryRegion GFX_stolen;
 	ram_addr_t GFX_stolen_base;/* BDSM */
 	ram_addr_t GFX_stolen_size;
 	MemoryRegion GFX_GTT_stolen;
 	ram_addr_t GFX_GTT_stolen_base; /*BGSM*/
 	ram_addr_t GFX_GTT_stolen_size;
+#endif
     PcPciInfo pci_info;
     uint8_t smm_enabled;
     ram_addr_t below_4g_mem_size;
@@ -79,9 +81,8 @@ typedef struct Q35PCIHost {
 #define Q35_MASK(bit, ms_bit, ls_bit) \
 ((uint##bit##_t)(((1ULL << ((ms_bit) + 1)) - 1) & ~((1ULL << ls_bit) - 1)))
 
-/*
- * gmch part
- */
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
+
 
 /* PCI configuration */
 #define MCH_HOST_BRIDGE	                        "MCH"
@@ -172,15 +173,13 @@ typedef struct Q35PCIHost {
 #define D0F0_GGC                               0x50                         /* 16 bits GMCH Graphics Control Register */
                                                                             /* 15 RO RESERVED */
 #define D0F0_GGC_VAMEN                         (0x1 << 14)                     /* 14 RW-L Versatile Acceleration Mode Enabled */
-                                                                            /* 13:10 RO RESERVED */
-#define D0F0_GGC_GGMS                          (0x2 << 8)                        /* 9:8 RW-L GTT Graphics Memory Size */
-#define D0F0_GGC_GMS                           (0x2 << 3)                               /* 7:3 RW-L Graphics Mode Select */
-                                                                            /* 2 RO RESERVED */
+                                                                            /* 13:10 RO RESERVED */                                                                            /* 2 RO RESERVED */
 #define D0F0_GGC_IVD                           (0x1 << 2)                   /* 1 RW-L IGD VGA Disable */
 #define D0F0_GGC_GGCLCK                        0x1                          /* 0 RW-KL GGC Lock */
 #define D0F0_GGC_SIZE                          2                            /* 2 Bytes */
 
-#define GFX_STOLEN_SIZE 256 * 1024 * 1024
+#define MCH_GFX_GTT_STOLEN_SIZE_DEFAULT ((1 << 27) + (1 << 21))
+#define GFX_STOLEN_SIZE 480 * 1024 * 1024
 #define GFX_GTT_STOLEN_BASE 					0xC0000000
 #define GFX_GTT_STOLEN_SIZE						0x20000
 #define GFX_STOLEN_BASE							(GFX_GTT_STOLEN_BASE + GFX_GTT_STOLEN_SIZE)
@@ -258,6 +257,7 @@ typedef struct Q35PCIHost {
                                                                             /* 19:1 RO RESERVED */
 #define D0F0_TOLUD_LOCK                        0x1                          /* 0 RW-KL Lock */
 #define D0F0_TOLUD_SIZE                        4                            /* 4 Bytes */
+#endif
 
 #define MCH_HOST_BRIDGE_REVISION_DEFAULT       0x0
 
@@ -265,10 +265,7 @@ typedef struct Q35PCIHost {
 #define MCH_HOST_BRIDGE_PCIEXBAR               0x60    /* 64bit register */
 #define MCH_HOST_BRIDGE_PCIEXBAR_SIZE          8       /* 64bit register */
 #define MCH_HOST_BRIDGE_PCIEXBAR_DEFAULT       0xb0000000
-//#define MCH_HOST_BRIDGE_PCIEXBAR_DEFAULT       0xe0000000 /* how about this address?*/
-
 #define MCH_HOST_BRIDGE_PCIEXBAR_MAX           (0x10000000) /* 256M */
-//#define MCH_HOST_BRIDGE_PCIEXBAR_MAX           (0x4000000) /* 64M */
 
 #define MCH_HOST_BRIDGE_PCIEXBAR_ADMSK         Q35_MASK(64, 35, 28)
 #define MCH_HOST_BRIDGE_PCIEXBAR_128ADMSK      ((uint64_t)(1 << 26))
@@ -331,7 +328,7 @@ typedef struct Q35PCIHost {
 #define MCH_HOST_BRDIGE_ESMRAMC_TSEG_SZ_8MB    ((uint8_t)(0x2 << 1))
 #define MCH_HOST_BRDIGE_ESMRAMC_T_EN           ((uint8_t)1)
 
-#define MCH_GFX_GTT_STOLEN_SIZE_DEFAULT ((1 << 27) + (1 << 21))
+
 
 /* D1:F0 PCIE* port*/
 #define MCH_PCIE_DEV                           1
