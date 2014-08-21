@@ -302,10 +302,13 @@ struct PCIDevice {
     MSIVectorReleaseNotifier msix_vector_release_notifier;
     MSIVectorPollNotifier msix_vector_poll_notifier;
 
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
+
 	int pt_dev_fd;
 	int32_t pt_devfn;
 	int32_t pt_bus;
 	int32_t pt_domain;
+#endif
 	
 };
 
@@ -757,7 +760,7 @@ extern const VMStateDescription vmstate_pci_device;
     .flags      = VMS_STRUCT|VMS_POINTER,                            \
     .offset     = vmstate_offset_pointer(_state, _field, PCIDevice), \
 }
-#ifndef CONFIG_INTEL_IGD_PASSTHROUGH
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 
 uint32_t host_pci_read_config(PCIDevice *d, uint32_t address, int len);
 void host_pci_write_config(PCIDevice *d, uint32_t address, int len, uint32_t val);

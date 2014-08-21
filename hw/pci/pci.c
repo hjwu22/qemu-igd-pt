@@ -1652,8 +1652,10 @@ PCIDevice *pci_vga_init(PCIBus *bus)
         return pci_create_simple(bus, 0x7<<3, "VGA");
     case VGA_VMWARE:
         return pci_create_simple(bus, 0x7<<3, "vmware-svga");
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
     case VGA_INTEL_IGD:
 		return pci_create_simple_multifunction(bus, 0x2<<3, false, "vfio-igd");
+#endif
     case VGA_NONE:
     default: /* Other non-PCI types. Checking for unsupported types is already
                 done in vl.c. */
@@ -2349,6 +2351,7 @@ static void pci_register_types(void)
     type_register_static(&pcie_bus_info);
     type_register_static(&pci_device_type_info);
 }
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 
 /* Provides config reads from the host */
 uint32_t host_pci_read_config(PCIDevice *d, uint32_t address, int len)
@@ -2476,5 +2479,6 @@ void __host_pci_write_config(int bus, int slot, int fn, uint32_t address, int le
 			__func__, 0000, bus, slot, fn, address, len, "Open Failed");
 	}
 }
+#endif
 
 type_init(pci_register_types)

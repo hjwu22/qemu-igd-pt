@@ -634,9 +634,6 @@ static int ich9_lpc_initfn(PCIDevice *d)
 		return -1;
 	}else
 		d->pt_dev_fd = fd;
-	
-#else
-	d->pt_dev_fd = -1;
 #endif
 
 

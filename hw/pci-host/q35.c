@@ -624,8 +624,6 @@ static int mch_init(PCIDevice *d)
 			return -1;
 		}else
 			d->pt_dev_fd = fd;
-#else
-		d->pt_dev_fd = -1;
 #endif
 
 
@@ -649,10 +647,8 @@ static int mch_init(PCIDevice *d)
                  &mch->pam_regions[i+1], PAM_EXPAN_BASE + i * PAM_EXPAN_SIZE,
                  PAM_EXPAN_SIZE);
     }
-	
+#ifdef PASSTHROUGH_INTEL_IGD	
 	set_intel_config(d);
-	
-#ifdef PASSTHROUGH_INTEL_IGD
 	mch_init_gfx_stolen(d);
 #endif
 
