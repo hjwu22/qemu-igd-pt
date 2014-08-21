@@ -358,11 +358,13 @@ static uint32_t mch_read_config(PCIDevice *d,
 	val = pci_default_read_config(d, address, len);
 
 #endif
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 
 	if (ranges_overlap(address, len, D0F0_GGC,
                        D0F0_GGC_SIZE)) {
         mch_update_gfx_stolen(mch);
     }
+#endif
 	Q35_DPRINTF("%s(%04x:%02x:%02x.%x, @0x%x, len=0x%x) %x\n", 
 				__func__, 0000, 00, 
 				PCI_SLOT(d->devfn), PCI_FUNC(d->devfn), 
@@ -408,10 +410,12 @@ static void mch_write_config(PCIDevice *d,
         mch_update_smram(mch);
     }
 	
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 	if (ranges_overlap(address, len, D0F0_BGSM,
                        D0F0_BDSM_SIZE)) {
         mch_update_gfx_stolen(mch);
     }
+#endif
 
 }
 
