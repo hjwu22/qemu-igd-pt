@@ -757,11 +757,12 @@ extern const VMStateDescription vmstate_pci_device;
     .flags      = VMS_STRUCT|VMS_POINTER,                            \
     .offset     = vmstate_offset_pointer(_state, _field, PCIDevice), \
 }
+#ifndef CONFIG_INTEL_IGD_PASSTHROUGH
 
 uint32_t host_pci_read_config(PCIDevice *d, uint32_t address, int len);
 void host_pci_write_config(PCIDevice *d, uint32_t address, int len, uint32_t val);
 uint32_t __host_pci_read_config(int bus, int slot, int fn, uint32_t address, int len);
 void __host_pci_write_config(int bus, int slot, int fn, uint32_t address, int len, uint32_t val);
-
+#endif
 
 #endif

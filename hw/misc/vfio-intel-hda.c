@@ -2831,6 +2831,10 @@ static int vfio_hda_initfn(PCIDevice *pdev)
 	VFIOGroup *group;
 	int groupID;
     int ret;
+#ifndef CONFIG_INTEL_IGD_PASSTHROUGH
+	error_report("vfio: Intel IGD Passthrough is not enabled");
+	return -1;
+#endif
 	vdev->host.domain=0;
 	vdev->host.bus=0;
     vdev->host.slot=3;

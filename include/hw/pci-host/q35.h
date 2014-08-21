@@ -81,7 +81,7 @@ typedef struct Q35PCIHost {
 #define Q35_MASK(bit, ms_bit, ls_bit) \
 ((uint##bit##_t)(((1ULL << ((ms_bit) + 1)) - 1) & ~((1ULL << ls_bit) - 1)))
 
-#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
+
 
 
 /* PCI configuration */
@@ -89,6 +89,7 @@ typedef struct Q35PCIHost {
 
 #define MCH_HOST_BRIDGE_CONFIG_ADDR				0xcf8
 #define MCH_HOST_BRIDGE_CONFIG_DATA				0xcfc
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 
 /* D0:F0 configuration space */
 #define D0F0_VID                               0x00                         /* 16 bits RO */

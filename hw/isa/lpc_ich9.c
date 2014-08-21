@@ -615,7 +615,7 @@ static int ich9_lpc_initfn(PCIDevice *d)
 
     isa_bus = isa_bus_new(&d->qdev, get_system_io());
 
-#ifdef PASSTHROUGH_INTEL_IGD
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 	
 	int fd;
 	char dir[128], name[128];
@@ -636,7 +636,7 @@ static int ich9_lpc_initfn(PCIDevice *d)
 		d->pt_dev_fd = fd;
 	
 #else
-			d->pt_dev_fd = -1;
+	d->pt_dev_fd = -1;
 #endif
 
 
