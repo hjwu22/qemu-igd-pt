@@ -518,6 +518,8 @@ static void mch_reset(DeviceState *qdev)
 
     mch_update(mch);
 }
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
+
 static inline void set_intel_config(PCIDevice *d)
 {
 
@@ -593,7 +595,7 @@ static inline void set_intel_config(PCIDevice *d)
 
 }
 
-
+#endif
 
 static int mch_init(PCIDevice *d)
 {
