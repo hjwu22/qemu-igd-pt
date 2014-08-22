@@ -620,7 +620,7 @@ int e820_add_entry(uint64_t address, uint64_t length, uint32_t type)
     e820_table[e820_entries].length = cpu_to_le64(length);
     e820_table[e820_entries].type = cpu_to_le32(type);
     e820_entries++;
-	dump_e820();
+	//dump_e820();
     return e820_entries;
 }
 
