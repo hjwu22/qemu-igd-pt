@@ -324,6 +324,7 @@ tpm="no"
 libssh2=""
 vhdx=""
 quorum="no"
+igd_passthrough="no"
 
 # parse CC options first
 for opt do
