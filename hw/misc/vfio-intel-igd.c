@@ -1436,20 +1436,20 @@ static bool vfio_listener_skipped_section(MemoryRegionSection *section)
 		.lo=0xFFFFF
 	};
 	
-    return !memory_region_is_ram(section->mr) ||
+    //return !memory_region_is_ram(section->mr) ||
            /*
             * Sizing an enabled 64-bit BAR can cause spurious mappings to
             * addresses in the upper part of the 64-bit address space.  These
             * are never accessed by the CPU and beyond the address width of
             * some IOMMU hardware.  TODO: VFIO should tell us the IOMMU width.q
             */
-           section->offset_within_address_space & (1ULL << 63)||
-           (section->offset_within_address_space <= 0xFFFF && 
-           int128_le(section->size, legacy)) ||
-           section->offset_within_address_space == 0x0;
+    //       section->offset_within_address_space & (1ULL << 63)||
+     //      (section->offset_within_address_space <= 0xFFFF && 
+     //      int128_le(section->size, legacy)) ||
+     //      section->offset_within_address_space == 0x0;
 	
-    //return !memory_region_is_ram(section->mr) ||
-    //		section->offset_within_address_space & (1ULL << 63);
+    return !memory_region_is_ram(section->mr) ||
+    		section->offset_within_address_space & (1ULL << 63);
 	
 }
 
