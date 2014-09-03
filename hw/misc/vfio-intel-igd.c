@@ -1437,10 +1437,6 @@ static bool vfio_listener_skipped_section(MemoryRegionSection *section)
 	};
 	
     return !memory_region_is_ram(section->mr) ||
-			ranges_overlap(section->offset_within_address_space,
-			int128_get64(section->size), 0xfe400000, 0x3fffff)||
-			ranges_overlap(section->offset_within_address_space,
-			int128_get64(section->size), 0x0, 0xfffff)||
            /*
             * Sizing an enabled 64-bit BAR can cause spurious mappings to
             * addresses in the upper part of the 64-bit address space.  These
