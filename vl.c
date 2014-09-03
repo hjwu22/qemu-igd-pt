@@ -2127,11 +2127,12 @@ static bool cg3_vga_available(void)
 {
     return object_class_by_name("cgthree");
 }
+#ifdef CONFIG_INTEL_IGD_PASDSTHROUGH
 static bool intel_igd_vga_available(void)
 {	
 	return object_class_by_name("vfio-igd");
 }
-
+#endif
 static void select_vgahw (const char *p)
 {
     const char *opts;
@@ -2181,7 +2182,9 @@ static void select_vgahw (const char *p)
             fprintf(stderr, "Error: CG3 framebuffer not available\n");
             exit(0);
         }
-	} else if (strstart(p, "igd", &opts)) {
+	}
+#ifdef CONFIG_INTEL_IGD_PASDSTHROUGH	
+	else if (strstart(p, "igd", &opts)) {
         if (intel_igd_vga_available()) {
             vga_interface_type = VGA_INTEL_IGD;
 			display_type = DT_NONE;
@@ -2189,7 +2192,9 @@ static void select_vgahw (const char *p)
             fprintf(stderr, "Error: INTEL IGD passthrough is not available\n");
             exit(0);
         }
-    } else if (!strstart(p, "none", &opts)) {
+    }
+#endif
+	else if (!strstart(p, "none", &opts)) {
     invalid_vga:
         fprintf(stderr, "Unknown vga type: %s\n", p);
         exit(1);

@@ -39,8 +39,10 @@
 #include "qemu/range.h"
 #include "sysemu/kvm.h"
 #include "sysemu/sysemu.h"
+#include "ui/console.h"
 
 /* #define DEBUG_VFIO */
+#define DEBUG_VFIO
 #ifdef DEBUG_VFIO
 #define DPRINTF(fmt, ...) \
     do { fprintf(stderr, "vfio: " fmt, ## __VA_ARGS__); } while (0)
@@ -198,6 +200,7 @@ typedef struct VFIODevice {
     bool has_pm_reset;
     bool needs_reset;
     bool rom_read_failed;
+	GraphicHwOps hw_ops;
 } VFIODevice;
 
 typedef struct VFIOGroup {
@@ -3738,7 +3741,7 @@ static int vfio_initfn(PCIDevice *pdev)
     struct stat st;
     int groupid;
     int ret;
-
+	
     /* Check that the host device exists */
     snprintf(path, sizeof(path),
              "/sys/bus/pci/devices/%04x:%02x:%02x.%01x/",
@@ -3869,6 +3872,10 @@ static int vfio_initfn(PCIDevice *pdev)
 
     add_boot_device_path(vdev->bootindex, &pdev->qdev, NULL);
     vfio_register_err_notifier(vdev);
+
+	memset(&vdev->hw_ops, 0, sizeof(GraphicHwOps));
+	graphic_console_init(DEVICE(pdev), 0, &vdev->hw_ops, NULL);
+	
 
     return 0;
 

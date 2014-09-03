@@ -104,7 +104,11 @@ extern int autostart;
 
 typedef enum {
     VGA_NONE, VGA_STD, VGA_CIRRUS, VGA_VMWARE, VGA_XENFB, VGA_QXL,
-    VGA_TCX, VGA_CG3, VGA_INTEL_IGD, VGA_DEVICE
+    VGA_TCX, VGA_CG3, 
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
+	VGA_INTEL_IGD,
+#endif
+	VGA_DEVICE
 } VGAInterfaceType;
 
 extern int vga_interface_type;

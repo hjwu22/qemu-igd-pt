@@ -47,7 +47,7 @@
 #include "hw/pci/pci_bus.h"
 #include "hw/pci-host/q35.h"
 
-//#define DEBUG_VFIO
+#define DEBUG_VFIO
 #ifdef DEBUG_VFIO
 #define DPRINTF(fmt, ...) \
     do { fprintf(stderr, "vfio: " fmt, ## __VA_ARGS__); } while (0)
@@ -2871,12 +2871,12 @@ static int vfio_get_device(VFIOGroup *group, VFIODevice *vdev)
     }
     vdev->config_offset = reg_info.offset;
 
+  
 
-    struct vfio_region_info vga_info = {
-		.argsz = sizeof(vga_info),
-		.index = VFIO_PCI_VGA_REGION_INDEX,
-		};
-
+	struct vfio_region_info vga_info = {
+			.argsz = sizeof(vga_info),
+			.index = VFIO_PCI_VGA_REGION_INDEX,
+			};
 	ret = ioctl(vdev->fd, VFIO_DEVICE_GET_REGION_INFO, &vga_info);
 	if (ret) {
 		error_report("vfio: Device does not support requested feature x-vga");
@@ -2896,7 +2896,7 @@ static int vfio_get_device(VFIOGroup *group, VFIODevice *vdev)
 	vdev->vga.fd = vdev->fd; //Assign VFIO fd to vga.fd
 
 	vdev->vga.region[QEMU_PCI_VGA_MEM].offset = QEMU_PCI_VGA_MEM_BASE;
-    vdev->vga.region[QEMU_PCI_VGA_MEM].nr = QEMU_PCI_VGA_MEM;
+	vdev->vga.region[QEMU_PCI_VGA_MEM].nr = QEMU_PCI_VGA_MEM;
 	QLIST_INIT(&vdev->vga.region[QEMU_PCI_VGA_MEM].quirks);
 
 	vdev->vga.region[QEMU_PCI_VGA_IO_LO].offset = QEMU_PCI_VGA_IO_LO_BASE;
@@ -2908,7 +2908,7 @@ static int vfio_get_device(VFIOGroup *group, VFIODevice *vdev)
 	QLIST_INIT(&vdev->vga.region[QEMU_PCI_VGA_IO_HI].quirks);
 
 	vdev->has_vga = true;
-
+    
     irq_info.index = VFIO_PCI_ERR_IRQ_INDEX;
 
     ret = ioctl(vdev->fd, VFIO_DEVICE_GET_IRQ_INFO, &irq_info);
@@ -3325,8 +3325,9 @@ static int vfio_igd_initfn(PCIDevice *pdev)
         }
     }
 	
-
+	add_boot_device_path(vdev->bootindex, &pdev->qdev, NULL);
     vfio_register_err_notifier(vdev);
+
 	//vnc_drawing_init(pdev);
 	memset(&vdev->hw_ops, 0, sizeof(GraphicHwOps));
 	graphic_console_init(DEVICE(pdev), 0, &vdev->hw_ops, NULL);
@@ -3399,6 +3400,7 @@ static Property vfio_pci_dev_properties[] = {
     DEFINE_PROP_PCI_HOST_DEVADDR("host", VFIODevice, host),
     DEFINE_PROP_UINT32("x-intx-mmap-timeout-ms", VFIODevice,
                        intx.mmap_timeout, 2100),
+    DEFINE_PROP_INT32("bootindex", VFIODevice, bootindex, -1),
     DEFINE_PROP_END_OF_LIST(),
 };
 
