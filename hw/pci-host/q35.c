@@ -43,8 +43,11 @@ do {printf("Q35: " format, ## __VA_ARGS__);} while(0)
 #endif
  
  /* for intel-spec conforming config */
-#define CORRECT_CONFIG
+
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 #define EMUQ35GFX
+extern int vga_interface_type;
+#endif
 
 /****************************************************************************
  * Q35 host
@@ -604,7 +607,7 @@ static int mch_init(PCIDevice *d)
 
 	
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
-
+	if (vga_interface_type == VGA_INTEL_IGD) {
 		int fd;
 		char dir[128], name[128];
 		
@@ -619,11 +622,12 @@ static int mch_init(PCIDevice *d)
 		snprintf(name, sizeof(name), "%sconfig", dir);
 	
 		fd = open(name, O_RDONLY);
-		if(fd < 0){
-			error_report("%s: Prelinmarily pass through LPC failed\n", __func__);
+		if (fd < 0) {
+			error_report("%s: Initializing pass through MCH failed\n", __func__);
 			return -1;
-		}else
+		} else
 			d->pt_dev_fd = fd;
+	}
 #endif
 
 

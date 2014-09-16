@@ -55,7 +55,7 @@
 #endif
 #define PASSTHROUGH_INTEL_IGD
 
-
+extern int vga_interface_type;
 static int ich9_lpc_sci_irq(ICH9LPCState *lpc);
 
 /*****************************************************************************/
@@ -616,24 +616,26 @@ static int ich9_lpc_initfn(PCIDevice *d)
     isa_bus = isa_bus_new(&d->qdev, get_system_io());
 
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
-	
-	int fd;
-	char dir[128], name[128];
+	if (vga_interface_type == VGA_INTEL_IGD) {
+
+		int fd;
+		char dir[128], name[128];
 			
-	d->pt_domain = 0;
-	d->pt_bus = 0;
-	d->pt_devfn = PCI_DEVFN(0x1f, 0);
+		d->pt_domain = 0;
+		d->pt_bus = 0;
+		d->pt_devfn = PCI_DEVFN(0x1f, 0);
 			
-	snprintf(dir, sizeof(dir), "/sys/bus/pci/devices/%04x:%02x:%02x.%x/",
-				 0, 0, 0x1f, 0);
-	snprintf(name, sizeof(name), "%sconfig", dir);
+		snprintf(dir, sizeof(dir), "/sys/bus/pci/devices/%04x:%02x:%02x.%x/",
+			0, 0, 0x1f, 0);
+		snprintf(name, sizeof(name), "%sconfig", dir);
 		
-	fd = open(name, O_RDONLY);
-	if(fd < 0){
-		error_report("%s: Prelinmarily pass through LPC failed\n", __func__);
-		return -1;
-	}else
+		fd = open(name, O_RDONLY);
+		if (fd < 0) {
+			error_report("%s: Prelinmarily pass through LPC failed\n", __func__);
+			return -1;
+		} else
 		d->pt_dev_fd = fd;
+	}
 #endif
 
 
@@ -719,8 +721,10 @@ static void ich9_lpc_class_init(ObjectClass *klass, void *data)
 	dc->desc = "ICH9 LPC bridge";
     k->vendor_id = PCI_VENDOR_ID_INTEL;
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
-	k->device_id = __host_pci_read_config(0, 0x1f, 0, 0x02, 2);
-    k->revision =  __host_pci_read_config(0, 0x1f, 0, 0x08, 2);
+	if (vga_interface_type ==VGA_INTEL_IGD) {
+		k->device_id = __host_pci_read_config(0, 0x1f, 0, 0x02, 2);
+    	k->revision =  __host_pci_read_config(0, 0x1f, 0, 0x08, 2);
+	}
 #else
     k->device_id = PCI_DEVICE_ID_INTEL_ICH9_8;
     k->revision = ICH9_A2_LPC_REVISION;
