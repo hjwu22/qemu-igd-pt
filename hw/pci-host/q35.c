@@ -34,7 +34,7 @@
 #include "hw/pci/pci.h" //IGD PASSTHROUGH
 #include "qemu/error-report.h"
 
-//#define DEBUG_Q35
+#define DEBUG_Q35
 #ifdef DEBUG_Q35
 # define Q35_DPRINTF(format, ...)\
 do {printf("Q35: " format, ## __VA_ARGS__);} while(0)
@@ -329,45 +329,47 @@ static uint32_t mch_read_config(PCIDevice *d,
 	MCHPCIState *mch = MCH_PCI_DEVICE(d);
 
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
-
-	switch (address)
-	{
+	if (vga_interface_type == VGA_INTEL_IGD) {
+		switch (address)
+		{
 		/* According to XEN code, this is all that is requried.
 		 * VID,DID,RID are configured in _init method */
-		case D0F0_VID:		/*VID*/
-		case D0F0_DID:		/*DID*/
-		case D0F0_RID:		/*Revision*/
-		case D0F0_HDR:		/*Header Type*/
-		case D0F0_SVID:			/* SVID - Subsystem Vendor Identification */
-		case D0F0_SID:      	/* SID - Subsystem Identification */
-		case D0F0_PAVPC:		/* PAVPC - Protected Audio Video Path Control  */
+			case D0F0_VID:		/*VID*/
+			case D0F0_DID:		/*DID*/
+			case D0F0_RID:		/*Revision*/
+			case D0F0_HDR:		/*Header Type*/
+			case D0F0_SVID:			/* SVID - Subsystem Vendor Identification */
+			case D0F0_SID:      	/* SID - Subsystem Identification */
+			case D0F0_PAVPC:		/* PAVPC - Protected Audio Video Path Control  */
 
 #ifndef EMUQ35GFX	
-		case D0F0_TOM:      /* TOM - Top of memory, 8 bytes */
-		case D0F0_GGC:      /* MGGC - SNB Graphics Control Register */
-		case 0x54:		/* DEVEN */
-		case 0xB0:      /* HSW:BDSM base of GFX stolen memory */
-		case 0xB4:      /* HSW:BGSM base of GFX GTT stolen memory */
+			case D0F0_TOM:      /* TOM - Top of memory, 8 bytes */
+			case D0F0_GGC:      /* MGGC - SNB Graphics Control Register */
+			case 0x54:		/* DEVEN */
+			case 0xB0:      /* HSW:BDSM base of GFX stolen memory */
+			case 0xB4:      /* HSW:BGSM base of GFX GTT stolen memory */
 #endif
-			val = host_pci_read_config(d,
+				val = host_pci_read_config(d,
 									   address, len);
 
-			break;
-		default:
-			val = pci_default_read_config(d, address, len);
-	  }
+				break;
+			default:
+				val = pci_default_read_config(d, address, len);
+	  	}
+	} else {
+		val = pci_default_read_config(d, address, len);
+	}
+	
+	if (ranges_overlap(address, len, D0F0_GGC,
+                       D0F0_GGC_SIZE)) {
+        mch_update_gfx_stolen(mch);
+    }
 #else
 
 	val = pci_default_read_config(d, address, len);
 
 #endif
-#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 
-	if (ranges_overlap(address, len, D0F0_GGC,
-                       D0F0_GGC_SIZE)) {
-        mch_update_gfx_stolen(mch);
-    }
-#endif
 	Q35_DPRINTF("%s(%04x:%02x:%02x.%x, @0x%x, len=0x%x) %x\n", 
 				__func__, 0000, 00, 
 				PCI_SLOT(d->devfn), PCI_FUNC(d->devfn), 
@@ -429,7 +431,8 @@ static void mch_write_config(PCIDevice *d,
 static void mch_init_gfx_stolen(PCIDevice *d)
 {
 	MCHPCIState *mch = MCH_PCI_DEVICE(d);
-	
+	if (vga_interface_type != VGA_INTEL_IGD)
+		return;
 
 #define PAGE_MASK ~((1 << 13) - 1)
 #define PAGE_ALIGN(addr) (((addr) & PAGE_MASK))
@@ -525,7 +528,8 @@ static void mch_reset(DeviceState *qdev)
 
 static inline void set_intel_config(PCIDevice *d)
 {
-
+	if (vga_interface_type != VGA_INTEL_IGD)
+		return;
 	/* Unsure if this is important. but the following is as per INTEL spec
 	 * which otherwise is non-conforming. */
 	 MCHPCIState *mch = MCH_PCI_DEVICE(d);
@@ -683,8 +687,14 @@ static void mch_class_init(ObjectClass *klass, void *data)
     dc->vmsd = &vmstate_mch;
     k->vendor_id = PCI_VENDOR_ID_INTEL;
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
-	k->device_id = __host_pci_read_config(0, 0, 0, 0x02, 2);
-    k->revision =  __host_pci_read_config(0, 0, 0, 0x08, 2);
+	if (vga_interface_type == VGA_INTEL_IGD)
+	{
+		k->device_id = __host_pci_read_config(0, 0, 0, 0x02, 2);
+    	k->revision =  __host_pci_read_config(0, 0, 0, 0x08, 2);
+	} else {
+		k->device_id = PCI_DEVICE_ID_INTEL_Q35_MCH;
+    	k->revision = MCH_HOST_BRIDGE_REVISION_DEFAULT;
+	}
 #else
 	k->device_id = PCI_DEVICE_ID_INTEL_Q35_MCH;
     k->revision = MCH_HOST_BRIDGE_REVISION_DEFAULT;
