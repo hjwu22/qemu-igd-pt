@@ -112,9 +112,6 @@ typedef struct PCIIORegion {
 #define PCI_NUM_REGIONS 7
 
 enum {
-	INTEL_IGD_IO,
-	INTEL_OPREGION,
-	INTEL_MCHBAR,
     QEMU_PCI_VGA_MEM,
     QEMU_PCI_VGA_IO_LO,
     QEMU_PCI_VGA_IO_HI,

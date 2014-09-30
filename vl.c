@@ -2127,7 +2127,7 @@ static bool cg3_vga_available(void)
 {
     return object_class_by_name("cgthree");
 }
-#ifdef CONFIG_INTEL_IGD_PASDSTHROUGH
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 static bool intel_igd_vga_available(void)
 {	
 	return object_class_by_name("vfio-igd");
@@ -2183,7 +2183,7 @@ static void select_vgahw (const char *p)
             exit(0);
         }
 	}
-#ifdef CONFIG_INTEL_IGD_PASDSTHROUGH	
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH	
 	else if (strstart(p, "igd", &opts)) {
         if (intel_igd_vga_available()) {
             vga_interface_type = VGA_INTEL_IGD;

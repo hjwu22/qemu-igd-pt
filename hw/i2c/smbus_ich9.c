@@ -69,7 +69,7 @@ static void ich9_smbus_write_config(PCIDevice *d, uint32_t address,
                                     uint32_t val, int len)
 {
     ICH9SMBState *s = ICH9_SMB_DEVICE(d);
-	
+    
     pci_default_write_config(d, address, val, len);
     if (range_covers_byte(address, len, ICH9_SMB_HOSTC)) {
         uint8_t hostc = s->dev.config[ICH9_SMB_HOSTC];
@@ -131,7 +131,7 @@ static void ich9_smb_class_init(ObjectClass *klass, void *data)
     k->device_id = PCI_DEVICE_ID_INTEL_ICH9_6;
     k->revision = ICH9_A2_SMB_REVISION;
 #endif
-	k->class_id = PCI_CLASS_SERIAL_SMBUS;
+    k->class_id = PCI_CLASS_SERIAL_SMBUS;
     dc->vmsd = &vmstate_ich9_smbus;
     dc->desc = "ICH9 SMBUS Bridge";
     k->init = ich9_smbus_initfn;

@@ -581,18 +581,6 @@ static void handle_a20_line_change(void *opaque, int irq, int level)
     /* XXX: add logic to handle multiple A20 line sources */
     x86_cpu_set_a20(cpu, level);
 }
-static void
-dump_e820(void)
-{
-    printf("QEMU e820 map has %d items:\n", e820_entries);
-    int i;
-    for (i=0; i<e820_entries; i++) {
-        struct e820_entry *e = &e820_table[i];
-        uint64_t e_end = e->address + e->length - 1;
-        printf("  %d: %016llx - %016llx = %d\n", i
-                , e->address, e_end, e->type);
-    }
-}
 
 int e820_add_entry(uint64_t address, uint64_t length, uint32_t type)
 {
@@ -620,7 +608,7 @@ int e820_add_entry(uint64_t address, uint64_t length, uint32_t type)
     e820_table[e820_entries].length = cpu_to_le64(length);
     e820_table[e820_entries].type = cpu_to_le32(type);
     e820_entries++;
-	//dump_e820();
+
     return e820_entries;
 }
 
@@ -1192,21 +1180,20 @@ FWCfgState *pc_memory_init(MemoryRegion *system_memory,
      */
     ram = g_malloc(sizeof(*ram));
     memory_region_init_ram(ram, NULL, "pc.ram",
-                           below_4g_mem_size + above_4g_mem_size);//total ram insert/assigned
+                           below_4g_mem_size + above_4g_mem_size);
     vmstate_register_ram_global(ram);
     *ram_memory = ram;
     ram_below_4g = g_malloc(sizeof(*ram_below_4g));
     memory_region_init_alias(ram_below_4g, NULL, "ram-below-4g", ram,
-                             0, below_4g_mem_size);//make a sub memory region and alias 'ram below 4g'
+                             0, below_4g_mem_size);
     memory_region_add_subregion(system_memory, 0, ram_below_4g);
-    e820_add_entry(0, below_4g_mem_size, E820_RAM);//make notice to bios that this range is available ram
-	
-    if (above_4g_mem_size > 0) {//insert amount larger than 4GB 
+    e820_add_entry(0, below_4g_mem_size, E820_RAM);
+    if (above_4g_mem_size > 0) {
         ram_above_4g = g_malloc(sizeof(*ram_above_4g));
         memory_region_init_alias(ram_above_4g, NULL, "ram-above-4g", ram,
                                  below_4g_mem_size, above_4g_mem_size);
         memory_region_add_subregion(system_memory, 0x100000000ULL,
-                                    ram_above_4g);//also add a sub memory region and alias 'ram above 4g'
+                                    ram_above_4g);
         e820_add_entry(0x100000000ULL, above_4g_mem_size, E820_RAM);
     }
 
@@ -1222,10 +1209,10 @@ FWCfgState *pc_memory_init(MemoryRegion *system_memory,
                                         option_rom_mr,
                                         1);
 
-    fw_cfg = bochs_bios_init();//init fw_cfg nvram
+    fw_cfg = bochs_bios_init();
     rom_set_fw(fw_cfg);
 
-    if (linux_boot) {//load linux to nvram fw_cfg, then bios will copy kernel to 0x10000 and boot
+    if (linux_boot) {
         load_linux(fw_cfg, kernel_filename, initrd_filename, kernel_cmdline, below_4g_mem_size);
     }
 
@@ -1403,8 +1390,7 @@ void pc_nic_init(ISABus *isa_bus, PCIBus *pci_bus)
         if (!pci_bus || (nd->model && strcmp(nd->model, "ne2k_isa") == 0)) {
             pc_init_ne2k_isa(isa_bus, nd);
         } else {
-            //pci_nic_init_nofail(nd, pci_bus, "e1000", NULL);
-            pci_nic_init_nofail(nd, pci_bus, "e1000", "00:06.0");
+            pci_nic_init_nofail(nd, pci_bus, "e1000", NULL);
         }
     }
 }
