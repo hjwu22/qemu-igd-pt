@@ -27,6 +27,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include "config-host.h"
 #include "qemu-common.h"
 #include "hw/hw.h"
 #include "qapi/visitor.h"

@@ -9,7 +9,7 @@
 #include "qapi-types.h"
 #include "qemu/notify.h"
 #include "qemu/main-loop.h"
-
+#include "config-host.h"
 /* vl.c */
 
 extern const char *bios_name;

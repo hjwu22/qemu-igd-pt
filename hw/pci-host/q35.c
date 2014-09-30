@@ -33,7 +33,7 @@
 #include "qapi/visitor.h"
 #include "hw/pci/pci.h" //IGD PASSTHROUGH
 #include "qemu/error-report.h"
-
+#include "config-host.h"
 #define DEBUG_Q35
 #ifdef DEBUG_Q35
 # define Q35_DPRINTF(format, ...)\
