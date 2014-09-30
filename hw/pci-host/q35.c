@@ -386,8 +386,8 @@ static void mch_write_config(PCIDevice *d,
 			__func__, 0000, 00,                                                                            
 			PCI_SLOT(d->devfn), PCI_FUNC(d->devfn),                                                        
 			address, len, val);
-#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 	MCHPCIState *mch = MCH_PCI_DEVICE(d);
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 
 	switch (address)
 	{
