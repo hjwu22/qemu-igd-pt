@@ -326,9 +326,10 @@ static uint32_t mch_read_config(PCIDevice *d,
                                  uint32_t address, int len)
 {
     uint32_t val;
+	
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 	MCHPCIState *mch = MCH_PCI_DEVICE(d);
 
-#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 	if (vga_interface_type == VGA_INTEL_IGD) {
 		switch (address)
 		{
@@ -380,12 +381,14 @@ static uint32_t mch_read_config(PCIDevice *d,
 static void mch_write_config(PCIDevice *d,
                               uint32_t address, uint32_t val, int len)
 {
-    MCHPCIState *mch = MCH_PCI_DEVICE(d);
+    
 	Q35_DPRINTF("%s(%04x:%02x:%02x.%x, @0x%x, len=0x%x) %x\n",                                                             
 			__func__, 0000, 00,                                                                            
 			PCI_SLOT(d->devfn), PCI_FUNC(d->devfn),                                                        
 			address, len, val);
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
+	MCHPCIState *mch = MCH_PCI_DEVICE(d);
+
 	switch (address)
 	{
 		
@@ -655,7 +658,7 @@ static int mch_init(PCIDevice *d)
                  &mch->pam_regions[i+1], PAM_EXPAN_BASE + i * PAM_EXPAN_SIZE,
                  PAM_EXPAN_SIZE);
     }
-#ifdef CONFIG_PASSTHROUGH_INTEL_IGD	
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 	set_intel_config(d);
 	mch_init_gfx_stolen(d);
 #endif
