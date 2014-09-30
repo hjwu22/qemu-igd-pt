@@ -647,10 +647,10 @@ static int ich9_lpc_initfn(PCIDevice *d)
                             "lpc-rbca-mmio", ICH9_CC_SIZE);
 
     lpc->isa_bus = isa_bus;
-	
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 	pci_set_long(d->wmask + ICH9_LPC_PMBASE,
                  ICH9_LPC_PMBASE_BASE_ADDRESS_MASK);
-	
+#endif
     ich9_cc_init(lpc);
     apm_init(d, &lpc->apm, ich9_apm_ctrl_changed, lpc);
 
@@ -719,13 +719,13 @@ static void ich9_lpc_class_init(ObjectClass *klass, void *data)
     dc->vmsd = &vmstate_ich9_lpc;
     k->config_write = ich9_lpc_config_write;
     k->config_read = ich9_lpc_config_read;
-	dc->desc = "ICH9 LPC bridge";
+    dc->desc = "ICH9 LPC bridge";
     k->vendor_id = PCI_VENDOR_ID_INTEL;
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 	if (vga_interface_type ==VGA_INTEL_IGD) {
-		k->device_id = __host_pci_read_config(0, 0x1f, 0, 0x02, 2);
-    	k->revision =  __host_pci_read_config(0, 0x1f, 0, 0x08, 2);
-	}
+        k->device_id = __host_pci_read_config(0, 0x1f, 0, 0x02, 2);
+        k->revision =  __host_pci_read_config(0, 0x1f, 0, 0x08, 2);
+    }
 #else
     k->device_id = PCI_DEVICE_ID_INTEL_ICH9_8;
     k->revision = ICH9_A2_LPC_REVISION;
