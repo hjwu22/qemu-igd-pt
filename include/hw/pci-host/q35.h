@@ -304,10 +304,8 @@ typedef struct Q35PCIHost {
 #define MCH_HOST_BRIDGE_PAM_RE                 ((uint8_t)0x1)
 #define MCH_HOST_BRIDGE_PAM_MASK               ((uint8_t)0x3)
 
-//#define MCH_HOST_BRDIGE_SMRAM                  0x88
-//#define MCH_HOST_BRDIGE_SMRAM_SIZE             1
-//#define MCH_HOST_BRIDGE_SMRAM_DEFAULT          ((uint8_t)0x1a)
-#define MCH_HOST_BRDIGE_SMRAM                  0x90
+#define MCH_HOST_BRDIGE_SMRAM                  0x88
+//#define MCH_HOST_BRDIGE_SMRAM                  0x90
 #define MCH_HOST_BRDIGE_SMRAM_SIZE             1
 #define MCH_HOST_BRIDGE_SMRAM_DEFAULT          ((uint8_t)0x1a)
 #define MCH_HOST_BRIDGE_SMRAM_D_OPEN           ((uint8_t)(1 << 6))

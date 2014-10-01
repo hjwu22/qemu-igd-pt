@@ -617,7 +617,7 @@ static int ich9_lpc_initfn(PCIDevice *d)
     isa_bus = isa_bus_new(&d->qdev, get_system_io());
 
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
-	if (vga_interface_type == VGA_INTEL_IGD) {
+	//if (vga_interface_type == VGA_INTEL_IGD) {
 
 		int fd;
 		char dir[128], name[128];
@@ -636,7 +636,7 @@ static int ich9_lpc_initfn(PCIDevice *d)
 			return -1;
 		} else
 		d->pt_dev_fd = fd;
-	}
+	//}
 #endif
 
 
