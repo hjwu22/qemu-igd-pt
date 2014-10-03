@@ -614,7 +614,7 @@ static int mch_init(PCIDevice *d)
 
 	
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
-	if (vga_interface_type == VGA_INTEL_IGD) {
+	//if (vga_interface_type == VGA_INTEL_IGD) {
 		int fd;
 		char dir[128], name[128];
 		
@@ -634,7 +634,7 @@ static int mch_init(PCIDevice *d)
 			return -1;
 		} else
 			d->pt_dev_fd = fd;
-	}
+	//}
 #endif
 
 
@@ -690,14 +690,14 @@ static void mch_class_init(ObjectClass *klass, void *data)
     dc->vmsd = &vmstate_mch;
     k->vendor_id = PCI_VENDOR_ID_INTEL;
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
-	if (vga_interface_type == VGA_INTEL_IGD)
-	{
+	//if (vga_interface_type == VGA_INTEL_IGD)
+	//{
 		k->device_id = __host_pci_read_config(0, 0, 0, 0x02, 2);
     	k->revision =  __host_pci_read_config(0, 0, 0, 0x08, 2);
-	} else {
-		k->device_id = PCI_DEVICE_ID_INTEL_Q35_MCH;
-    	k->revision = MCH_HOST_BRIDGE_REVISION_DEFAULT;
-	}
+	//} else {
+	//	k->device_id = PCI_DEVICE_ID_INTEL_Q35_MCH;
+    //	k->revision = MCH_HOST_BRIDGE_REVISION_DEFAULT;
+	//}
 #else
 	k->device_id = PCI_DEVICE_ID_INTEL_Q35_MCH;
     k->revision = MCH_HOST_BRIDGE_REVISION_DEFAULT;
