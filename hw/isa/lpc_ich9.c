@@ -722,10 +722,10 @@ static void ich9_lpc_class_init(ObjectClass *klass, void *data)
     dc->desc = "ICH9 LPC bridge";
     k->vendor_id = PCI_VENDOR_ID_INTEL;
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
-	if (vga_interface_type ==VGA_INTEL_IGD) {
+	//if (vga_interface_type ==VGA_INTEL_IGD) {
         k->device_id = __host_pci_read_config(0, 0x1f, 0, 0x02, 2);
         k->revision =  __host_pci_read_config(0, 0x1f, 0, 0x08, 2);
-    }
+    //}
 #else
     k->device_id = PCI_DEVICE_ID_INTEL_ICH9_8;
     k->revision = ICH9_A2_LPC_REVISION;
