@@ -330,7 +330,7 @@ static uint32_t mch_read_config(PCIDevice *d,
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 	MCHPCIState *mch = MCH_PCI_DEVICE(d);
 
-	if (vga_interface_type == VGA_INTEL_IGD) {
+	//if (vga_interface_type == VGA_INTEL_IGD) {
 		switch (address)
 		{
 		/* According to XEN code, this is all that is requried.
@@ -357,9 +357,9 @@ static uint32_t mch_read_config(PCIDevice *d,
 			default:
 				val = pci_default_read_config(d, address, len);
 	  	}
-	} else {
-		val = pci_default_read_config(d, address, len);
-	}
+	//} else {
+	//	val = pci_default_read_config(d, address, len);
+	//}
 	
 	if (ranges_overlap(address, len, D0F0_GGC,
                        D0F0_GGC_SIZE)) {
@@ -434,8 +434,8 @@ static void mch_write_config(PCIDevice *d,
 static void mch_init_gfx_stolen(PCIDevice *d)
 {
 	MCHPCIState *mch = MCH_PCI_DEVICE(d);
-	if (vga_interface_type != VGA_INTEL_IGD)
-		return;
+	//if (vga_interface_type != VGA_INTEL_IGD)
+	//	return;
 
 #define PAGE_MASK ~((1 << 13) - 1)
 #define PAGE_ALIGN(addr) (((addr) & PAGE_MASK))
@@ -531,8 +531,8 @@ static void mch_reset(DeviceState *qdev)
 
 static inline void set_intel_config(PCIDevice *d)
 {
-	if (vga_interface_type != VGA_INTEL_IGD)
-		return;
+	//if (vga_interface_type != VGA_INTEL_IGD)
+	//	return;
 	/* Unsure if this is important. but the following is as per INTEL spec
 	 * which otherwise is non-conforming. */
 	 MCHPCIState *mch = MCH_PCI_DEVICE(d);
