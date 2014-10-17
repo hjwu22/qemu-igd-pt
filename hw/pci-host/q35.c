@@ -34,7 +34,7 @@
 #include "hw/pci/pci.h" //IGD PASSTHROUGH
 #include "qemu/error-report.h"
 #include "config-host.h"
-#define DEBUG_Q35
+//#define DEBUG_Q35
 #ifdef DEBUG_Q35
 # define Q35_DPRINTF(format, ...)\
 do {printf("Q35: " format, ## __VA_ARGS__);} while(0)
