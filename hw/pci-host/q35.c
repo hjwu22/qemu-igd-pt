@@ -586,12 +586,12 @@ static inline void set_intel_config(PCIDevice *d)
 			((mch->below_4g_mem_size + mch->above_4g_mem_size)| D0F0_TOM_LOCK ));
 
 	/* BDSM - Base Data of Stolen Memory Register */
-    pci_set_long(d->wmask + D0F0_BDSM, (D0F0_BDSM_BDSM | D0F0_BDSM_LOCK));
+    //pci_set_long(d->wmask + D0F0_BDSM, (D0F0_BDSM_BDSM | D0F0_BDSM_LOCK));
 	pci_set_long(d->config + D0F0_BDSM, (GFX_STOLEN_BASE| D0F0_BDSM_LOCK));
 
     /* BGSM - Base of GTT Stolen Memory Register */
-    pci_set_long(d->wmask + D0F0_BGSM, (D0F0_BGSM_BGSM | D0F0_BGSM_LOCK));
-	pci_set_long(d->config + D0F0_BDSM, (GFX_GTT_STOLEN_BASE| D0F0_BDSM_LOCK));
+    //pci_set_long(d->wmask + D0F0_BGSM, (D0F0_BGSM_BGSM | D0F0_BGSM_LOCK));
+	pci_set_long(d->config + D0F0_BGSM, (GFX_GTT_STOLEN_BASE| D0F0_BGSM_LOCK));
 
     /* TSEG - G Memory Base Register */
     pci_set_long(d->wmask + D0F0_TSEG, 

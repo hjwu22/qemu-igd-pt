@@ -3286,7 +3286,8 @@ static int vfio_igd_initfn(PCIDevice *pdev)
 	vdev->pdev.config[0x63] = 0x0;
 	vdev->emulated_config_bits[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_MULTI_FUNCTION;
     vdev->pdev.config[PCI_HEADER_TYPE] |= PCI_HEADER_TYPE_MULTI_FUNCTION;
-    
+    memset(vdev->emulated_config_bits + 0xfc, 0xff, 4);
+    *(uint32_t *)&vdev->pdev.config[0xff] = 0;
 
     ret = vfio_early_setup_msix(vdev);
     if (ret) {

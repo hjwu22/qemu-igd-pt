@@ -87,14 +87,14 @@ typedef struct Q35PCIHost {
 /* PCI configuration */
 #define MCH_HOST_BRIDGE                        "MCH"
 
-#define MCH_HOST_BRIDGE_CONFIG_ADDR            0xcf8
-#define MCH_HOST_BRIDGE_CONFIG_DATA            0xcfc
+#define MCH_HOST_BRIDGE_CONFIG_ADDR			0xcf8
+#define MCH_HOST_BRIDGE_CONFIG_DATA			0xcfc
 
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
-
+#define MCH_REG_LOCK 			0x1
 /* D0:F0 configuration space */
-#define D0F0_VID                               0x00                         /* 16 bits RO */
-#define D0F0_VID_SIZE                          2                            /* 2 Bytes */
+#define D0F0_VID                               0x00                        
+#define D0F0_VID_SIZE                          2                           
 
 
 #define D0F0_DID                               0x02                         /* 16 bits RO */
@@ -180,10 +180,9 @@ typedef struct Q35PCIHost {
 #define D0F0_GGC_GGCLCK                        0x1                          /* 0 RW-KL GGC Lock */
 #define D0F0_GGC_SIZE                          2                            /* 2 Bytes */
 
-#define MCH_GFX_GTT_STOLEN_SIZE_DEFAULT ((1 << 27) + (1 << 21))
-#define GFX_STOLEN_SIZE 480 * 1024 * 1024
+#define GFX_STOLEN_SIZE 						(480 * 1024 * 1024)
 #define GFX_GTT_STOLEN_BASE 					0xC0000000
-#define GFX_GTT_STOLEN_SIZE						0x20000
+#define GFX_GTT_STOLEN_SIZE						(2 * 1024 * 1024)
 #define GFX_STOLEN_BASE							(GFX_GTT_STOLEN_BASE + GFX_GTT_STOLEN_SIZE)
 
 
