@@ -327,14 +327,12 @@ static uint32_t mch_read_config(PCIDevice *d,
 {
     uint32_t val;
 	
-#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 	MCHPCIState *mch = MCH_PCI_DEVICE(d);
-
+#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
+	
 	//if (vga_interface_type == VGA_INTEL_IGD) {
 		switch (address)
 		{
-		/* According to XEN code, this is all that is requried.
-		 * VID,DID,RID are configured in _init method */
 			case D0F0_VID:		/*VID*/
 			case D0F0_DID:		/*DID*/
 			case D0F0_RID:		/*Revision*/
@@ -342,17 +340,8 @@ static uint32_t mch_read_config(PCIDevice *d,
 			case D0F0_SVID:			/* SVID - Subsystem Vendor Identification */
 			case D0F0_SID:      	/* SID - Subsystem Identification */
 			case D0F0_PAVPC:		/* PAVPC - Protected Audio Video Path Control  */
-
-#ifndef EMUQ35GFX	
-			case D0F0_TOM:      /* TOM - Top of memory, 8 bytes */
-			case D0F0_GGC:      /* MGGC - SNB Graphics Control Register */
-			case 0x54:		/* DEVEN */
-			case 0xB0:      /* HSW:BDSM base of GFX stolen memory */
-			case 0xB4:      /* HSW:BGSM base of GFX GTT stolen memory */
-#endif
 				val = host_pci_read_config(d,
-									   address, len);
-
+									   	address, len);
 				break;
 			default:
 				val = pci_default_read_config(d, address, len);
@@ -361,10 +350,10 @@ static uint32_t mch_read_config(PCIDevice *d,
 	//	val = pci_default_read_config(d, address, len);
 	//}
 	
-	if (ranges_overlap(address, len, D0F0_GGC,
-                       D0F0_GGC_SIZE)) {
-        mch_update_gfx_stolen(mch);
-    }
+	//if (ranges_overlap(address, len, D0F0_GGC,
+    //                   D0F0_GGC_SIZE)) {
+    //    mch_update_gfx_stolen(mch);
+    //}
 #else
 
 	val = pci_default_read_config(d, address, len);
@@ -393,14 +382,13 @@ static void mch_write_config(PCIDevice *d,
 	{
 		
 	  case 0x58:
-		host_pci_write_config(d,
-								address, len, val);
+		host_pci_write_config(d, address, len, val);
 		return;
 		break;
 		//to be expanded
 	}
 #endif
-    /* XXX: implement SMRAM.D_LOCK */
+ 
     pci_default_write_config(d, address, val, len);
 
     if (ranges_overlap(address, len, MCH_HOST_BRIDGE_PAM0,
@@ -420,7 +408,7 @@ static void mch_write_config(PCIDevice *d,
 	
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 	if (ranges_overlap(address, len, D0F0_BGSM,
-                       D0F0_BDSM_SIZE)) {
+                       D0F0_BGSM_SIZE)) {
         mch_update_gfx_stolen(mch);
     }
 #endif
@@ -441,27 +429,15 @@ static void mch_init_gfx_stolen(PCIDevice *d)
 #define PAGE_ALIGN(addr) (((addr) & PAGE_MASK))
 
 
-#ifndef EMUQ35GFX
-	unsigned short GGC = mch_read_config(d, D0F0_GGC, 2); 
-	unsigned char GMS = (GGC & Q35_MASK(16, 7, 3)) >> 3;
-	unsigned short GGMS = (GGC & Q35_MASK(16, 9, 8)) >> 8;
-	mch->GFX_GTT_stolen_size = GGMS << 20; //1MB
-	mch->GFX_stolen_size = GMS << 25; //32MB
-	mch->GFX_stolen_base = 
-		PAGE_ALIGN(host_pci_read_config(d, 0xB0, 4));
-	mch->GFX_GTT_stolen_base = 
-		PAGE_ALIGN(host_pci_read_config(d, 0xB4, 4));
-#else
-	unsigned short GGC = D0F0_GGC_IVD | D0F0_GGC_GGCLCK;
-	unsigned short GMS = GFX_STOLEN_SIZE >>25;
-	GGC = GGC | GMS<<3 | 0x2 <<8;
-	mch->GFX_GTT_stolen_size = GFX_GTT_STOLEN_SIZE;//consider delete mch fields
-	mch->GFX_GTT_stolen_base = GFX_GTT_STOLEN_BASE;
-	mch->GFX_stolen_size = GFX_STOLEN_SIZE;//TODO: make this configurable, limited to host size
-	mch->GFX_stolen_base = GFX_STOLEN_BASE;
-    pci_set_word(d->config + D0F0_GGC, GGC);
-#endif
-
+	unsigned short ggc = mch_read_config(d, 0x50, 2);
+	unsigned short gms = ggc & Q35_MASK(16, 7, 3) >> 2;
+	unsigned short ggms = ggc & Q35_MASK(16, 9, 8) >> 7;
+	mch->GFX_GTT_stolen_size = ggms << 20;
+	mch->GFX_GTT_stolen_base = mch_read_config(d, 0xB0, 2);
+	mch->GFX_stolen_size = ggms << 25;
+	mch->GFX_stolen_base = mch_read_config(d, 0xB4, 2);
+	
+	
 	Q35_DPRINTF("GFX Stolen Base: %016llx, GFX_stolen_size: %016llX\n"
 		"GFX GTT Stolen size: %016llx, GFX GTT Stolen base: %016llX\n",
 		mch->GFX_stolen_base, mch->GFX_stolen_size,
@@ -479,7 +455,11 @@ static void mch_init_gfx_stolen(PCIDevice *d)
 									&mch->GFX_GTT_stolen, 1);
 	memory_region_set_enabled(&mch->GFX_GTT_stolen, false);
 	
+	pci_set_long(d->wmask + D0F0_BDSM, 0xffffffff);
+    pci_set_long(d->wmask + D0F0_BGSM, 0xffffffff);
+	
 }
+
 #endif 
 static void mch_update(MCHPCIState *mch)
 {
@@ -533,42 +513,14 @@ static inline void set_intel_config(PCIDevice *d)
 {
 	//if (vga_interface_type != VGA_INTEL_IGD)
 	//	return;
-	/* Unsure if this is important. but the following is as per INTEL spec
-	 * which otherwise is non-conforming. */
+	
 	 MCHPCIState *mch = MCH_PCI_DEVICE(d);
-
-	/* PCICMD Register */
-	pci_set_word(d->wmask + D0F0_PCICMD,
-					(D0F0_PCICMD_SERR | D0F0_PCICMD_PERR)); // set writable
-	pci_set_word(d->config + D0F0_PCICMD,
-					(D0F0_PCICMD_MAE | D0F0_PCICMD_BME)); // set 1
-
-	/* PCISTS Register */
-	pci_set_word(d->w1cmask + D0F0_PCISTS,
-					(D0F0_PCISTS_DPE | D0F0_PCISTS_SSE | D0F0_PCISTS_RMAS |
-			         D0F0_PCISTS_RTAS | D0F0_PCISTS_DPD));
-	pci_set_word(d->config + D0F0_PCISTS,
-	                 (D0F0_PCISTS_CLIST | D0F0_PCISTS_FB2B));
-
-    /* CC Register */
-    /* No RW Registers */
-    //pci_set_byte(d->config + D0F0_CC + D0F0_CC_BCC, 0x06); /* indicating a bridge device */
-
-    /* PXPEPBAR - TODO? */
-    pci_set_quad(d->wmask + D0F0_PXPEPBAR, 
-					(D0F0_PXPEPBAR_PXPEPBAR | D0F0_PXPEPBAR_PXPEPBAREN)); // set writable
-  
-    /* MCHBAR - TODO? */
-    pci_set_quad(d->wmask + D0F0_MCHBAR, 
-				(D0F0_MCHBAR_MCHBAR | D0F0_MCHBAR_MCHBAREN)); // set writable
-
 
     /* DEVEN */
     pci_set_long(d->wmask + D0F0_DEVEN, 0x0 | D0F0_DEVEN_D0EN|D0F0_DEVEN_D2EN|D0F0_DEVEN_D3EN);
     pci_set_long(d->config + D0F0_DEVEN, D0F0_DEVEN_D0EN | 
 		D0F0_DEVEN_D2EN |
 		D0F0_DEVEN_D3EN | D0F0_DEVEN_D1F0EN);
-	//HDA(D3) is disabled
 	
     /* DMIBAR */
     pci_set_quad(d->wmask + D0F0_DMIBAR, 
@@ -585,13 +537,6 @@ static inline void set_intel_config(PCIDevice *d)
 	pci_set_quad(d->config + D0F0_TOM, 
 			((mch->below_4g_mem_size + mch->above_4g_mem_size)| D0F0_TOM_LOCK ));
 
-	/* BDSM - Base Data of Stolen Memory Register */
-    //pci_set_long(d->wmask + D0F0_BDSM, (D0F0_BDSM_BDSM | D0F0_BDSM_LOCK));
-	pci_set_long(d->config + D0F0_BDSM, (GFX_STOLEN_BASE| D0F0_BDSM_LOCK));
-
-    /* BGSM - Base of GTT Stolen Memory Register */
-    //pci_set_long(d->wmask + D0F0_BGSM, (D0F0_BGSM_BGSM | D0F0_BGSM_LOCK));
-	pci_set_long(d->config + D0F0_BGSM, (GFX_GTT_STOLEN_BASE| D0F0_BGSM_LOCK));
 
     /* TSEG - G Memory Base Register */
     pci_set_long(d->wmask + D0F0_TSEG, 

@@ -91,78 +91,9 @@ typedef struct Q35PCIHost {
 #define MCH_HOST_BRIDGE_CONFIG_DATA			0xcfc
 
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
-#define MCH_REG_LOCK 			0x1
-/* D0:F0 configuration space */
-#define D0F0_VID                               0x00                        
-#define D0F0_VID_SIZE                          2                           
-
-
-#define D0F0_DID                               0x02                         /* 16 bits RO */
-#define D0F0_DID_SIZE                          2                            /* 2 Bytes */
-
-
-#define D0F0_PCICMD                            0x04                         /* 16 bits */
-                                                                            /* 15:10 RO RESERVED */
-#define D0F0_PCICMD_FB2B                       0x200                        /* 9 RO=0 Fast back-to-back Enable */
-#define D0F0_PCICMD_SERR                       0x100                        /* 8 RW */
-#define D0F0_PCICMD_ADSTEP                     0x80                         /* 7 RO=0 Address/Data Stepping Enable */
-#define D0F0_PCICMD_PERR                       0x40                         /* 6 RW */
-#define D0F0_PCICMD_VGASNOOP                   0x20                         /* 5 RO=0 VGA Palette Snoop Enable */
-#define D0F0_PCICMD_MWI                        0x10                         /* 4 RO=0 Memory Write and Invalidate Enable */
-                                                                            /* 3 RO RESERVED */
-#define D0F0_PCICMD_BME                        0x04                         /* 2 RO=1 Bus Master Enable */
-#define D0F0_PCICMD_MAE                        0x02                         /* 1 RO=1 Memory Access Enable */
-#define D0F0_PCICMD_IOAE                       0x01                         /* 0 RO=0 I/O Access Enable */
-#define D0F0_PCICMD_SIZE                       2                            /* 2 Bytes */
-
-
-#define D0F0_PCISTS                            0x06                         /* 16 bits */
-#define D0F0_PCISTS_DPE                        0x8000                       /* 15 RW1C Detected Parity Error */
-#define D0F0_PCISTS_SSE                        0x4000                       /* 14 RW1C Signaled System Error */
-#define D0F0_PCISTS_RMAS                       0x2000                       /* 13 RW1C Received Master Abort Status */
-#define D0F0_PCISTS_RTAS                       0x1000                       /* 12 RW1C Reveived Target Abort Status */
-#define D0F0_PCISTS_STAS                       0x800                        /* 11 RO=0 Signaled Target Abort Status */
-#define D0F0_PCISTS_DEVT_MASK                  0x600                        /* 10:9 RO=DEVSEL_FAST DEVSEL Timing */
-#define D0F0_PCISTS_DEVT_FAST                  0x000                        /* DEVSEL_FAST=00 */
-#define D0F0_PCISTS_DPD                        0x100                        /* 8 RW1C Master Data parity Error Detected */
-#define D0F0_PCISTS_FB2B                       0x80                         /* 7 RO=1 Fast Back-to-Back */
-                                                                            /* 6 bitpos RO RESERVED */
-#define D0F0_PCISTS_MC66                       0x20                         /* 5 RO=0 66 MHz Capable */
-#define D0F0_PCISTS_CLIST                      0x10                         /* 4 RO=1 Capability List */
-                                                                            /* 3:0 bitpos RO RESERVED */
-#define D0F0_PCISTS_SIZE                       2                            /* 2 Bytes */
-
 
 #define D0F0_RID                               0x08                         /* 8 bits RO */
 #define D0F0_RID_SIZE                          1                            /* 1 Byte */
-
-
-#define D0F0_CC                                0x09                         /* 24 bits */
-#define D0F0_CC_BCC                            0x800000                     /* 23:16 RO=06 Base Class Code indicating a Bridge Device */
-#define D0F0_CC_SUBCC                          0x8000                       /* 15:8 RO=00 Sub-Class Code indicating a  Host Bridge */
-#define D0F0_CC_PI                             0x80                         /* 7:0 RO=00 Programming Interface */
-#define D0F0_CC_SIZE                           3                            /* 3 Bytes */
-
-
-#define D0F0_HDR                               0x0e                         /* 7:0 RO=00 indicating single function */
-#define D0F0_HDR_SIZE                          1                            /* 1 Byte */
-
-
-#define D0F0_SVID                              0x2c                         /* 15:0 RW-O Subsytem Vendor ID */
-#define D0F0_SVID_SIZE                         2                            /* 2 Bytes */
-
-
-#define D0F0_SID                               0x2e                         /* 15:0 RW-O Subsytem ID */
-#define D0F0_SID_SIZE                          2                            /* 2 Bytes */
-
-
-#define D0F0_PXPEPBAR                          0x40                         /* 64 bits PCI Express Egrees Port Base Address Register */
-                                                                            /* 63:39 RO RESERVED */
-#define D0F0_PXPEPBAR_PXPEPBAR                 Q35_MASK(64, 38, 12)         /* 38:12 RW PXPEPBAR */
-                                                                            /* 11:1 RO RESERVED */
-#define D0F0_PXPEPBAR_PXPEPBAREN               0x01                         /* 0 RW PXPEPBAR Enable */
-#define D0F0_PXPEPBAR_SIZE                     8                            /* 8 Bytes */
-
 
 #define D0F0_MCHBAR                            0x48                         /* 64 bits Host Memory Mapped Register Range Base */
                                                                             /* 63:39 RO RESERVED */
@@ -179,11 +110,6 @@ typedef struct Q35PCIHost {
 #define D0F0_GGC_IVD                           (0x1 << 2)                   /* 1 RW-L IGD VGA Disable */
 #define D0F0_GGC_GGCLCK                        0x1                          /* 0 RW-KL GGC Lock */
 #define D0F0_GGC_SIZE                          2                            /* 2 Bytes */
-
-#define GFX_STOLEN_SIZE 						(480 * 1024 * 1024)
-#define GFX_GTT_STOLEN_BASE 					0xC0000000
-#define GFX_GTT_STOLEN_SIZE						(2 * 1024 * 1024)
-#define GFX_STOLEN_BASE							(GFX_GTT_STOLEN_BASE + GFX_GTT_STOLEN_SIZE)
 
 
 #define D0F0_DEVEN                             0x54                         /* 32 bits Device Enable Register */
@@ -230,20 +156,6 @@ typedef struct Q35PCIHost {
                                                                             /* 19:1 RO Reserved */
 #define D0F0_TOUUD_LOCK                        0x1                          /* 0 RW-KL Lock */
 #define D0F0_TOUUD_SIZE                        8                            /* 8 Bytes */
-
-
-#define D0F0_BDSM                              0xb0                         /* 32 bits Base Data of Stolen Memory Register */
-#define D0F0_BDSM_BDSM                         Q35_MASK(32,31,20)           /* 31:20 RW-L Graphics Base of Stolen Memory (BDSM) */
-                                                                            /* 19:1 RO Reserved */
-#define D0F0_BDSM_LOCK                         0x1                          /* 0 RW-KL Lock */
-#define D0F0_BDSM_SIZE                         4                            /* 4 Bytes */
-
-
-#define D0F0_BGSM                              0xb4                         /* 32 bits Base of GTT Stolen Memory Register */
-#define D0F0_BGSM_BGSM                         Q35_MASK(32,31,20)           /* 31:20 RW-L Graphics Base of GTT Stolen Memory (BGSM) */
-                                                                            /* 19:1 RO Reserved */
-#define D0F0_BGSM_LOCK                         0x1                          /* 0 RW-KL Lock */
-#define D0F0_BGSM_SIZE                         4                            /* 4 Bytes */
 
 
 #define D0F0_TSEG                              0xb8                         /* 32 bits G Memory Base Register */
@@ -303,8 +215,10 @@ typedef struct Q35PCIHost {
 #define MCH_HOST_BRIDGE_PAM_RE                 ((uint8_t)0x1)
 #define MCH_HOST_BRIDGE_PAM_MASK               ((uint8_t)0x3)
 
-#define MCH_HOST_BRDIGE_SMRAM                  0x88
+//#define MCH_HOST_BRDIGE_SMRAM                  0x88
 //#define MCH_HOST_BRDIGE_SMRAM                  0x90
+#define MCH_HOST_BRDIGE_SMRAM                  0x9d
+
 #define MCH_HOST_BRDIGE_SMRAM_SIZE             1
 #define MCH_HOST_BRIDGE_SMRAM_DEFAULT          ((uint8_t)0x1a)
 #define MCH_HOST_BRIDGE_SMRAM_D_OPEN           ((uint8_t)(1 << 6))
