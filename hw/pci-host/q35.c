@@ -536,27 +536,9 @@ static inline void set_intel_config(PCIDevice *d)
     pci_set_quad(d->wmask + D0F0_DMIBAR, 
 					(D0F0_DMIBAR_DMIBAR | D0F0_DMIBAR_DMIBAREN)); // set writable
 
-    /* TOM - Top Of Memory Register */
-    pci_set_quad(d->wmask + D0F0_TOM, (D0F0_TOM_TOM | D0F0_TOM_LOCK ));
-	pci_set_quad(d->config + D0F0_TOM, 
-		((mch->below_4g_mem_size + mch->above_4g_mem_size)| D0F0_TOM_LOCK ));
-	
-    /* TOUUD - Top Of Upper Usable DRAM Register */
-    pci_set_quad(d->wmask + D0F0_TOUUD, 
-					(D0F0_TOUUD_TOUUD | D0F0_TOUUD_LOCK ));
-	pci_set_quad(d->config + D0F0_TOM, 
-			((mch->below_4g_mem_size + mch->above_4g_mem_size)| D0F0_TOM_LOCK ));
-
-
     /* TSEG - G Memory Base Register */
     pci_set_long(d->wmask + D0F0_TSEG, 
 					(D0F0_TSEG_TSEGMB | D0F0_TSEG_LOCK));
-
-    /* TOLUD - Top of Low Usable DRAM */
-    pci_set_long(d->wmask + D0F0_TOLUD, 
-					(D0F0_TOLUD_TOLUD | D0F0_TOLUD_LOCK));
-	pci_set_long(d->config + D0F0_TOLUD, 
-					(MCH_HOST_BRIDGE_PCIEXBAR_DEFAULT | D0F0_TOLUD_LOCK));
 
 }
 
