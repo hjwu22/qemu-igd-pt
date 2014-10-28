@@ -1043,7 +1043,7 @@ static void vfio_update_msi(VFIODevice *vdev)
     }
 }
 
-#include "debug_mmio.h"
+//#include "debug_mmio.h"
 
 
 /*
@@ -1081,7 +1081,7 @@ static void vfio_bar_write(void *opaque, hwaddr addr,
     }
 	
 #if 0
-
+/* useful to debug mmio accesses */
 //#ifdef DEBUG_VFIO
     {
         VFIODevice *vdev = container_of(bar, VFIODevice, bars[bar->nr]);
@@ -1431,18 +1431,20 @@ static int vfio_dma_map(VFIOContainer *container, hwaddr iova,
 
 static bool vfio_listener_skipped_section(MemoryRegionSection *section)
 {
-	Int128 legacy={
-		.hi=0,
-		.lo=0xFFFFF
-	};
 	
-    //return !memory_region_is_ram(section->mr) ||
            /*
             * Sizing an enabled 64-bit BAR can cause spurious mappings to
             * addresses in the upper part of the 64-bit address space.  These
             * are never accessed by the CPU and beyond the address width of
-            * some IOMMU hardware.  TODO: VFIO should tell us the IOMMU width.q
+            * some IOMMU hardware.  TODO: VFIO should tell us the IOMMU width.
             */
+    /* 
+     * Actually there are several memory should be skipped. 
+     * Some memory space IGD never touch, so we could skip them for boot speed.
+     * For example, MCH PAM memory space.
+     * TODO: Skip memory spaces that IGD never touch.
+     */ 
+
     //       section->offset_within_address_space & (1ULL << 63)||
      //      (section->offset_within_address_space <= 0xFFFF && 
      //      int128_le(section->size, legacy)) ||
@@ -1907,13 +1909,6 @@ static void vfio_map_bars(VFIODevice *vdev)
         	memory_region_init_ram_ptr(&vdev->vga.region[QEMU_PCI_VGA_MEM].mem,
 							OBJECT(vdev), "vfio-vga-vram", 0x20000, map);
         }
-       //memory_region_init_io(&vdev->vga.region[QEMU_PCI_VGA_MEM].mem,
-       //                       OBJECT(vdev), &vfio_vga_ops,
-       //                       &vdev->vga.region[QEMU_PCI_VGA_MEM],
-       //                       "vfio-vga-mmio@0xa0000",
-       //                       QEMU_PCI_VGA_MEM_SIZE);
-		//DPRINTF("mg init io: vfio-vga-mmio@0xa0000\n");
-		
 		
         memory_region_init_io(&vdev->vga.region[QEMU_PCI_VGA_IO_LO].mem,
                               OBJECT(vdev), &vfio_vga_ops,
@@ -1962,6 +1957,7 @@ struct dev_interface {
 	void *gtt_aperture;
 };
 
+/*
 struct dev_interface interface;
 pthread_t draw_thread;
 volatile uint64_t fence_regs[32];
@@ -1991,7 +1987,7 @@ void *vnc_draw(void *param)
 	}
 }
 
-void vnc_drawing_init(PCIDevice *pdev)
+static void vnc_drawing_init(PCIDevice *pdev)
 {
 	pthread_attr_t attr;
  	pthread_attr_init(&attr);
@@ -2011,6 +2007,7 @@ void vnc_drawing_init(PCIDevice *pdev)
 	
 	pthread_create(&draw_thread, &attr, vnc_draw, &interface);
 }
+*/
 
 /*
  * General setup
@@ -3204,25 +3201,16 @@ static const MemoryRegionOps vfio_rom_ops = {
 static void vfio_pci_size_rom(VFIODevice *vdev)
 {
 	PCIDevice *pdev = &vdev->pdev;
-	
-	int size;
-	char *path;
-	void *ptr;
-	char name[32];
-	const VMStateDescription *vmsd;
-	
 	if (!pdev->romfile)
 		return ;
 	if (strlen(pdev->romfile) == 0)
 		return ;
 	
-	DPRINTF("%s\n", __func__);
-	
     rom_add_vga(pdev->romfile);
 	
+	DPRINTF("%s\n", __func__);
 	
 }
-
 
 static int vfio_igd_initfn(PCIDevice *pdev)
 {
@@ -3278,16 +3266,19 @@ static int vfio_igd_initfn(PCIDevice *pdev)
 
     /* vfio emulates a lot for us, but some bits need extra love */
     vdev->emulated_config_bits = g_malloc0(vdev->config_size);
-	//memset(vdev->emulated_config_bits + PCI_ROM_ADDRESS, 0xff, 4);
 	memset(&vdev->pdev.config[PCI_ROM_ADDRESS], 0, 4);
+
+	memset(vdev->emulated_config_bits + 0x50, 0xff, 2);
 	memset(vdev->emulated_config_bits + 0x5c, 0xff, 4);
-	*(uint32_t *)&vdev->pdev.config[0x5c] = GFX_STOLEN_BASE | 0x1;
+
 	vdev->emulated_config_bits[0x63] = 0xf;
 	vdev->pdev.config[0x63] = 0x0;
-	vdev->emulated_config_bits[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_MULTI_FUNCTION;
+	
+    vdev->emulated_config_bits[PCI_HEADER_TYPE] = PCI_HEADER_TYPE_MULTI_FUNCTION;
     vdev->pdev.config[PCI_HEADER_TYPE] |= PCI_HEADER_TYPE_MULTI_FUNCTION;
+    
     memset(vdev->emulated_config_bits + 0xfc, 0xff, 4);
-    *(uint32_t *)&vdev->pdev.config[0xff] = 0;
+    *(uint32_t *)&vdev->pdev.config[0xfc] = 0;
 
     ret = vfio_early_setup_msix(vdev);
     if (ret) {
@@ -3421,7 +3412,6 @@ static void vfio_pci_dev_class_init(ObjectClass *klass, void *data)
     pdc->config_read = vfio_pci_read_config;
     pdc->config_write = vfio_pci_write_config;
     pdc->is_express = 1; /* We might be */
-	//pdc->romfile = "hsw_1028_qnap.dat";
 }
 
 static const TypeInfo vfio_pci_dev_info = {
