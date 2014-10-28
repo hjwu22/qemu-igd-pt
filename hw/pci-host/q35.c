@@ -34,24 +34,24 @@
 #include "hw/pci/pci.h" //IGD PASSTHROUGH
 #include "qemu/error-report.h"
 #include "config-host.h"
-//#define DEBUG_Q35
+#define DEBUG_Q35
 #ifdef DEBUG_Q35
 # define Q35_DPRINTF(format, ...)\
 do {printf("Q35: " format, ## __VA_ARGS__);} while(0)
 #else
-# define Q35_DPRINTF(format, ...)       do { } while (0)
+# define Q35_DPRINTF(format, ...) do { } while (0)
 #endif
  
- /* for intel-spec conforming config */
 
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
-#define EMUQ35GFX
-extern int vga_interface_type;
+static void mch_update_gfx_stolen(PCIDevice *d);
+static void mch_update_gfx_gtt_stolen(PCIDevice *d);
 #endif
 
 /****************************************************************************
  * Q35 host
  */
+
 
 static void q35_host_realize(DeviceState *dev, Error **errp)
 {
@@ -305,63 +305,45 @@ static void mch_set_smm(int smm, void *arg)
                     &mch->smram_region);
     memory_region_transaction_commit();
 }
-#ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 
-static void mch_update_gfx_stolen(MCHPCIState *mch)
-{
-
-	PCIDevice *pd = PCI_DEVICE(mch);
-
-	memory_region_transaction_begin();
-	memory_region_set_enabled(&mch->GFX_GTT_stolen, true);
-	memory_region_transaction_commit();
-	
-	memory_region_transaction_begin();
-	memory_region_set_enabled(&mch->GFX_stolen, true);
-	memory_region_transaction_commit();
-
-}
-#endif
 static uint32_t mch_read_config(PCIDevice *d,
                                  uint32_t address, int len)
 {
+
     uint32_t val;
 	
 	MCHPCIState *mch = MCH_PCI_DEVICE(d);
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
-	
-	//if (vga_interface_type == VGA_INTEL_IGD) {
+    
+#define VID         0x0
+#define DID         0x2
+#define RID         0x8
+#define HDR         0xE
+#define SVID        0x2C
+#define SID         0x2E
+#define MCH_PAVAC   0x58
+
 		switch (address)
 		{
-			case D0F0_VID:		/*VID*/
-			case D0F0_DID:		/*DID*/
-			case D0F0_RID:		/*Revision*/
-			case D0F0_HDR:		/*Header Type*/
-			case D0F0_SVID:			/* SVID - Subsystem Vendor Identification */
-			case D0F0_SID:      	/* SID - Subsystem Identification */
-			case D0F0_PAVPC:		/* PAVPC - Protected Audio Video Path Control  */
+			case VID:		
+			case DID:		
+			case RID:		
+			case HDR:		
+			case SVID:			
+			case SID:      	
+			case MCH_PAVAC:	
 				val = host_pci_read_config(d,
 									   	address, len);
 				break;
 			default:
 				val = pci_default_read_config(d, address, len);
 	  	}
-	//} else {
-	//	val = pci_default_read_config(d, address, len);
-	//}
-	
-	//if (ranges_overlap(address, len, D0F0_GGC,
-    //                   D0F0_GGC_SIZE)) {
-    //    mch_update_gfx_stolen(mch);
-    //}
 #else
-
 	val = pci_default_read_config(d, address, len);
-
 #endif
 
 	Q35_DPRINTF("%s(%04x:%02x:%02x.%x, @0x%x, len=0x%x) %x\n", 
-				__func__, 0000, 00, 
+				__func__, 0x0000, 0x00, 
 				PCI_SLOT(d->devfn), PCI_FUNC(d->devfn), 
 				address, len, val);
 
@@ -372,7 +354,7 @@ static void mch_write_config(PCIDevice *d,
 {
     
 	Q35_DPRINTF("%s(%04x:%02x:%02x.%x, @0x%x, len=0x%x) %x\n",                                                             
-			__func__, 0000, 00,                                                                            
+			__func__, 0x0000, 0x00,                                                                            
 			PCI_SLOT(d->devfn), PCI_FUNC(d->devfn),                                                        
 			address, len, val);
 	MCHPCIState *mch = MCH_PCI_DEVICE(d);
@@ -381,11 +363,10 @@ static void mch_write_config(PCIDevice *d,
 	switch (address)
 	{
 		
-	  case 0x58:
+	  case MCH_PAVAC:
 		host_pci_write_config(d, address, len, val);
 		return;
 		break;
-		//to be expanded
 	}
 #endif
  
@@ -407,41 +388,58 @@ static void mch_write_config(PCIDevice *d,
     }
 	
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
-	if (ranges_overlap(address, len, D0F0_BGSM,
-                       D0F0_BGSM_SIZE)) {
-        mch_update_gfx_stolen(mch);
+	if (ranges_overlap(address, len, 0xB0, 0x4)) {
+        mch_update_gfx_stolen(d);
+    }
+
+	if (ranges_overlap(address, len, 0xB4, 0x4)) {
+        mch_update_gfx_gtt_stolen(d);
     }
 #endif
-
 }
 
-
-
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
+
+#define BUG_ON(cond)\
+    assert(cond)
+
+static void mch_init_gfx_gtt_stolen(PCIDevice *d)
+{
+	MCHPCIState *mch = MCH_PCI_DEVICE(d);
+
+	unsigned short ggc = mch_read_config(d, 0x50, 2);
+	unsigned short ggms = (ggc & Q35_MASK(16, 9, 8)) >> 8;
+    Q35_DPRINTF("ggc 0x%x, ggms 0x%x\n", ggc, ggms);
+
+    BUG_ON((ggms <= 0x2) && "unexpected GGMS value\n" );
+
+    mch->GFX_GTT_stolen_size = ggms << 20;
+	mch->GFX_GTT_stolen_base = mch_read_config(d, 0xB4, 4) & (~0x1);
+    
+    memory_region_init_ram(&mch->GFX_GTT_stolen, OBJECT(mch), "gfx-gtt-region",
+						 mch->GFX_GTT_stolen_size);
+	memory_region_add_subregion_overlap(mch->system_memory, mch->GFX_GTT_stolen_base,
+									&mch->GFX_GTT_stolen, 1);
+	memory_region_set_enabled(&mch->GFX_GTT_stolen, false);
+    
+    pci_set_long(d->wmask + 0xB4, 0xffffffff);
+
+	Q35_DPRINTF("GFX GTT Stolen size: %016llx, GFX GTT Stolen base: %016llX\n",
+		        mch->GFX_GTT_stolen_base, mch->GFX_GTT_stolen_size);
+}
 
 static void mch_init_gfx_stolen(PCIDevice *d)
 {
 	MCHPCIState *mch = MCH_PCI_DEVICE(d);
-	//if (vga_interface_type != VGA_INTEL_IGD)
-	//	return;
-
-#define PAGE_MASK ~((1 << 13) - 1)
-#define PAGE_ALIGN(addr) (((addr) & PAGE_MASK))
-
 
 	unsigned short ggc = mch_read_config(d, 0x50, 2);
-	unsigned short gms = ggc & Q35_MASK(16, 7, 3) >> 2;
-	unsigned short ggms = ggc & Q35_MASK(16, 9, 8) >> 7;
-	mch->GFX_GTT_stolen_size = ggms << 20;
-	mch->GFX_GTT_stolen_base = mch_read_config(d, 0xB0, 2);
-	mch->GFX_stolen_size = ggms << 25;
-	mch->GFX_stolen_base = mch_read_config(d, 0xB4, 2);
+	unsigned short gms = (ggc & Q35_MASK(16, 7, 3)) >> 3;
 	
-	
-	Q35_DPRINTF("GFX Stolen Base: %016llx, GFX_stolen_size: %016llX\n"
-		"GFX GTT Stolen size: %016llx, GFX GTT Stolen base: %016llX\n",
-		mch->GFX_stolen_base, mch->GFX_stolen_size,
-		mch->GFX_GTT_stolen_base, mch->GFX_GTT_stolen_size);
+    Q35_DPRINTF("ggc 0x%x, gms 0x%x\n", ggc, gms);
+	BUG_ON((gms <= 0x10) && "unexpected GMS value");
+    
+    mch->GFX_stolen_size = gms << 25;
+	mch->GFX_stolen_base = mch_read_config(d, 0xB0, 4) & (~0x1);
 
 	memory_region_init_ram(&mch->GFX_stolen, OBJECT(mch), "gfx-region",
 						 mch->GFX_stolen_size);
@@ -449,28 +447,41 @@ static void mch_init_gfx_stolen(PCIDevice *d)
 									&mch->GFX_stolen, 1);
 	memory_region_set_enabled(&mch->GFX_stolen, false);
 
-	memory_region_init_ram(&mch->GFX_GTT_stolen, OBJECT(mch), "gfx-gtt-region",
-						 mch->GFX_GTT_stolen_size);
-	memory_region_add_subregion_overlap(mch->system_memory, mch->GFX_GTT_stolen_base,
-									&mch->GFX_GTT_stolen, 1);
-	memory_region_set_enabled(&mch->GFX_GTT_stolen, false);
-	
-	pci_set_long(d->wmask + D0F0_BDSM, 0xffffffff);
-    pci_set_long(d->wmask + D0F0_BGSM, 0xffffffff);
+	pci_set_long(d->wmask + 0xB0, 0xffffffff);
+	Q35_DPRINTF("GFX Stolen Base: %016llx, GFX_stolen_size: %016llX\n",
+		        mch->GFX_stolen_base, mch->GFX_stolen_size);
 	
 }
 
-#endif 
+
+static void mch_update_gfx_stolen(PCIDevice *d)
+{
+	MCHPCIState *mch = MCH_PCI_DEVICE(d);
+    
+    mch_init_gfx_stolen(d);
+
+	memory_region_transaction_begin();
+	memory_region_set_enabled(&mch->GFX_stolen, true);
+	memory_region_transaction_commit();
+}
+static void mch_update_gfx_gtt_stolen(PCIDevice *d)
+{   
+	MCHPCIState *mch = MCH_PCI_DEVICE(d);
+
+    mch_init_gfx_gtt_stolen(d);
+
+	memory_region_transaction_begin();
+	memory_region_set_enabled(&mch->GFX_GTT_stolen, true);
+	memory_region_transaction_commit();
+
+}
+#endif
+
 static void mch_update(MCHPCIState *mch)
 {
     mch_update_pciexbar(mch);
-	//dbg_mtree_info();
-	//mch_update_gfx_stolen(mch);
-	//dbg_mtree_info();
     mch_update_pam(mch);
-	//dbg_mtree_info();
     mch_update_smram(mch);
-	//dbg_mtree_info();
 	
 }
 
@@ -507,12 +518,11 @@ static void mch_reset(DeviceState *qdev)
 
     mch_update(mch);
 }
+
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
 
 static inline void set_intel_config(PCIDevice *d)
 {
-	//if (vga_interface_type != VGA_INTEL_IGD)
-	//	return;
 	
 	 MCHPCIState *mch = MCH_PCI_DEVICE(d);
 
@@ -557,9 +567,7 @@ static int mch_init(PCIDevice *d)
     int i;
     MCHPCIState *mch = MCH_PCI_DEVICE(d);
 
-	
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
-	//if (vga_interface_type == VGA_INTEL_IGD) {
 		int fd;
 		char dir[128], name[128];
 		
@@ -579,7 +587,6 @@ static int mch_init(PCIDevice *d)
 			return -1;
 		} else
 			d->pt_dev_fd = fd;
-	//}
 #endif
 
 
@@ -603,9 +610,10 @@ static int mch_init(PCIDevice *d)
                  &mch->pam_regions[i+1], PAM_EXPAN_BASE + i * PAM_EXPAN_SIZE,
                  PAM_EXPAN_SIZE);
     }
+
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
+    /* FIXME: Move this to Seabios */
 	set_intel_config(d);
-	mch_init_gfx_stolen(d);
 #endif
 
     return 0;
@@ -635,14 +643,8 @@ static void mch_class_init(ObjectClass *klass, void *data)
     dc->vmsd = &vmstate_mch;
     k->vendor_id = PCI_VENDOR_ID_INTEL;
 #ifdef CONFIG_INTEL_IGD_PASSTHROUGH
-	//if (vga_interface_type == VGA_INTEL_IGD)
-	//{
-		k->device_id = __host_pci_read_config(0, 0, 0, 0x02, 2);
-    	k->revision =  __host_pci_read_config(0, 0, 0, 0x08, 2);
-	//} else {
-	//	k->device_id = PCI_DEVICE_ID_INTEL_Q35_MCH;
-    //	k->revision = MCH_HOST_BRIDGE_REVISION_DEFAULT;
-	//}
+	k->device_id = __host_pci_read_config(0, 0, 0, 0x02, 2);
+    k->revision =  __host_pci_read_config(0, 0, 0, 0x08, 2);
 #else
 	k->device_id = PCI_DEVICE_ID_INTEL_Q35_MCH;
     k->revision = MCH_HOST_BRIDGE_REVISION_DEFAULT;
