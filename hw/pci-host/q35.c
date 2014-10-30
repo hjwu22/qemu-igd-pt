@@ -527,18 +527,15 @@ static inline void set_intel_config(PCIDevice *d)
 	 MCHPCIState *mch = MCH_PCI_DEVICE(d);
 
     /* DEVEN */
-    pci_set_long(d->wmask + D0F0_DEVEN, 0x0 | D0F0_DEVEN_D0EN|D0F0_DEVEN_D2EN|D0F0_DEVEN_D3EN);
-    pci_set_long(d->config + D0F0_DEVEN, D0F0_DEVEN_D0EN | 
-		D0F0_DEVEN_D2EN |
-		D0F0_DEVEN_D3EN | D0F0_DEVEN_D1F0EN);
+    pci_set_long(d->wmask + D0F0_DEVEN, 0xFFFFFFFF);
 	
     /* DMIBAR */
     pci_set_quad(d->wmask + D0F0_DMIBAR, 
 					(D0F0_DMIBAR_DMIBAR | D0F0_DMIBAR_DMIBAREN)); // set writable
 
     /* TSEG - G Memory Base Register */
-    pci_set_long(d->wmask + D0F0_TSEG, 
-					(D0F0_TSEG_TSEGMB | D0F0_TSEG_LOCK));
+    //pci_set_long(d->wmask + D0F0_TSEG, 
+	//				(D0F0_TSEG_TSEGMB | D0F0_TSEG_LOCK));
 
 }
 
