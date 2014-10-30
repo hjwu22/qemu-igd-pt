@@ -409,7 +409,7 @@ static void mch_init_gfx_gtt_stolen(PCIDevice *d)
 
 	unsigned short ggc = mch_read_config(d, 0x50, 2);
 	unsigned short ggms = (ggc & Q35_MASK(16, 9, 8)) >> 8;
-    Q35_DPRINTF("ggc 0x%x, ggms 0x%x\n", ggc, ggms);
+    Q35_DPRINTF("%s: ggc 0x%x, ggms 0x%x\n",__func__, ggc, ggms);
 
     BUG_ON((ggms <= 0x2) && "unexpected GGMS value\n" );
 
@@ -435,7 +435,7 @@ static void mch_init_gfx_stolen(PCIDevice *d)
 	unsigned short ggc = mch_read_config(d, 0x50, 2);
 	unsigned short gms = (ggc & Q35_MASK(16, 7, 3)) >> 3;
 	
-    Q35_DPRINTF("ggc 0x%x, gms 0x%x\n", ggc, gms);
+    Q35_DPRINTF("%s: ggc 0x%x, gms 0x%x\n", __func__, ggc, gms);
 	BUG_ON((gms <= 0x10) && "unexpected GMS value");
     
     mch->GFX_stolen_size = gms << 25;
@@ -457,8 +457,8 @@ static void mch_init_gfx_stolen(PCIDevice *d)
 static void mch_update_gfx_stolen(PCIDevice *d)
 {
 	MCHPCIState *mch = MCH_PCI_DEVICE(d);
-    
-    mch_init_gfx_stolen(d);
+    if(!mch->GFX_stolen_base) 
+        mch_init_gfx_stolen(d);
 
 	memory_region_transaction_begin();
 	memory_region_set_enabled(&mch->GFX_stolen, true);
@@ -467,8 +467,8 @@ static void mch_update_gfx_stolen(PCIDevice *d)
 static void mch_update_gfx_gtt_stolen(PCIDevice *d)
 {   
 	MCHPCIState *mch = MCH_PCI_DEVICE(d);
-
-    mch_init_gfx_gtt_stolen(d);
+    if(!mch->GFX_GTT_stolen_base)
+        mch_init_gfx_gtt_stolen(d);
 
 	memory_region_transaction_begin();
 	memory_region_set_enabled(&mch->GFX_GTT_stolen, true);
@@ -569,6 +569,11 @@ static int mch_init(PCIDevice *d)
 			return -1;
 		} else
 			d->pt_dev_fd = fd;
+        
+        mch->GFX_stolen_size = 0;
+        mch->GFX_stolen_base = 0;
+        mch->GFX_GTT_stolen_size = 0;
+        mch->GFX_GTT_stolen_base = 0;
 #endif
 
 
