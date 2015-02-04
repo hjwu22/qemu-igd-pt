@@ -1,5 +1,13 @@
 This version of QEMU implements Intel IGD passthrough for Gen7 GPU and up.
 
+How to use:
+git checkout igd-pt
+./configure --enable-igd-passthrough
+make
+make install
+
+gdb --args qemu-system-x86_64 -enable-kvm -M q35 -m 2048 -smp 2 -cpu host -vga none -device vfio-igd,romfile=hsw_1028_qnap.dat,bus=pcie.0,addr=02.0 -bios /root/seabios-qemu/out/bios.bin -chardev stdio,id=seabios -device isa-debugcon,iobase=0x402,chardev=seabios -monitor stdio -vnc :1 -drive file=/mnt/vms/ubuntu14.04.img,id=disk,if=none -device ide-hd,bus=ide.0,unit=0,bootindex=3,drive=disk 
+
 Tested Platform :
 Intel 4th Core i with HD 4600 (Haswell) + B85 Chipset
 Intel Xeon E3-1245v3 with HD P4600 (Haswell) + C220 Chipset
@@ -15,6 +23,7 @@ https://github.com/hjwu22/seabios-intel-igd.git
 
 Known issue:
 Lack of support to Legacy VGA.
+Lack of support to Intel Quick Video Sync.
 
 
 
