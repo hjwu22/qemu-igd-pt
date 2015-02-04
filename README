@@ -1,3 +1,24 @@
+This version of QEMU implements Intel IGD passthrough for Gen7 GPU and up.
+
+Tested Platform :
+Intel 4th Core i with HD 4600 (Haswell) + B85 Chipset
+Intel Xeon E3-1245v3 with HD P4600 (Haswell) + C220 Chipset
+Intel 3th Core i with HD 4000 (Ivybridge) + B75 Chipset
+
+Tested kernel version:
+Kernel v3.12.10 to v3.16.1
+v3.17 is not functional due to limited accesses to non-RMRR.
+
+Note:
+VM should be boot up with modified seaBIOS, please download and build the BIOS @ 
+https://github.com/hjwu22/seabios-intel-igd.git
+
+Known issue:
+Lack of support to Legacy VGA.
+
+
+
+---
 Read the documentation in qemu-doc.html or on http://wiki.qemu-project.org
 
 - QEMU team
